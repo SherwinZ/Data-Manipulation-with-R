@@ -1,0 +1,1213 @@
+title: "R Notebook"
+output: html_notebook
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Ctrl+Shift+Enter*. 
+
+```{r}
+plot(cars)
+```
+
+Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Ctrl+Alt+I*.
+
+When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Ctrl+Shift+K* to preview the HTML file).
+
+
+
+# Exploratory Data Analysis in R
+
+# 1. Data cleaning and summarizing with dplyr
+
+
+
+## 1.1 The United Nations voting dataset
+
+historical general assembly, 
+
+rows = observations
+
+columns = variables
+
+**Description of the dataset**
+
+| Variables     | Explanation                                                  |
+| ------------- | ------------------------------------------------------------ |
+| rcid          | row call id, describing one round voting, such as prove of UN's resolution |
+| session(year) | which year long session in the UN history the vote is casted |
+| vote          | the country's choice, **1 = yes, 2 = abstain, 3 = no, 8 = not present, 9 = not yet member of UN** |
+| ccode         | country code, needed to specify a country                    |
+
+```{r}
+# Load dplyr package
+library(dplyr)
+
+# then "votes"
+vote
+```
+
+## 1.2 Clean the dataset
+
+(some explanations about `dplyr` and `%>%`)
+
+```{r}
+# if we only cares about the vote = 123
+votes %>%
+    filter(vote <= 3)
+
+# 
+votes %>% 
+    mutate(year = session + 1945)
+```
+
+
+
+**translate the country code**
+
+The country codes in the `ccode` column are what's called [Correlates of War codes](http://cow.dss.ucdavis.edu/data-sets/cow-country-codes). This isn't ideal for an analysis, since you'd like to work with recognizable country names.
+
+You can use the `countrycode` package to translate.
+
+```{r}
+# translate the country code
+library(countrycode)
+
+# Translate the country code 2
+> countrycode(2, "cown", "country.name")
+[1] "United States"
+
+# Translate multiple country codes
+> countrycode(c(2, 20, 40), "cown", "country.name")
+[1] "United States" "Canada"        "Cuba"
+```
+
+### EXERCISE 1: Translate the country code
+
+**Instructions**
+
+- Load the `countrycode` package.
+- Convert the country code 100 to its country name.
+- Add a new `country` column in your `mutate()` statement containing country names, using the `countrycode()` function to translate from the `ccode` column. Save the result to `votes_processed`.
+
+```{r}
+# Load the countrycode package
+library(countrycode)
+
+# Convert country code 100
+countrycode(100, "cown", "country.name")
+
+# Add a country column within the mutate: votes_processed
+votes_processed <- votes %>%
+  filter(vote <= 3) %>%
+  mutate(year = session + 1945, country = countrycode(ccode, "cown", "country.name"))
+```
+
+Remember the `votes_processed`
+
+(some explanations bout grouping and summarizing)
+
+**% of Yes vote** represents the intent to agree with the international consensus, -> summarize()
+
+```{r}
+votes_processed %>%
+    summarize(total = n(),
+              percent_yes = mean(vote == 1))
+              # the logical test returns T or F, T = 1 and F = 0, so it is a way of calculating "percent of vote equal to 1"
+
+# If I want ot see the trend
+votes_processed %>%
+    group_by(year) %>%
+    summarize(total = n(),
+              percent_yes = mean(vote == 1))
+```
+
+### EXERCISE 2: group by country
+
+```{r}
+# Summarize by country: by_country
+by_country <- votes_processed %>%
+  group_by(country) %>%
+  summarize(total = n(),
+            percent_yes = mean(vote == 1))
+
+# A tibble: 200 x 3
+   country             total percent_yes
+   <chr>               <int>       <dbl>
+ 1 Afghanistan          2373       0.859
+ 2 Albania              1695       0.717
+ 3 Algeria              2213       0.899
+ 4 Andorra               719       0.638
+ 5 Angola               1431       0.924
+ 6 Antigua and Barbuda  1302       0.912
+ 7 Argentina            2553       0.768
+ 8 Armenia               758       0.747
+ 9 Australia            2575       0.557
+10 Austria              2389       0.622
+# ... with 190 more rows
+```
+
+### EXERCISE 3: filter out and arrange
+
+**arrange() by percent_yes
+
+```{r}
+by_country %>%
+    arrange(percent_yes)
+
+# Filter out countries with fewer than 100 votes
+by_country %>%
+  arrange(percent_yes) %>%
+  filter(total >= 100)
+```
+
+The result (for the next chap), the percentage of the yes for each country:
+
+```{r}
+# A tibble: 197 x 3
+   country                         total percent_yes
+   <chr>                           <int>       <dbl>
+ 1 United States                    2568       0.269
+ 2 Palau                             369       0.339
+ 3 Israel                           2380       0.341
+ 4 Federal Republic of Germany      1075       0.397
+ 5 United Kingdom                   2558       0.417
+ 6 France                           2527       0.427
+ 7 Micronesia, Federated States of   724       0.442
+ 8 Marshall Islands                  757       0.491
+ 9 Belgium                          2568       0.492
+10 Canada                           2576       0.508
+# ... with 187 more rows
+```
+
+
+
+# 2. Visualization with ggplot2
+
+Still difficult to see the trend or communicate to others -> visualization
+
+## 2.1 Visualizing by year
+
+Call to ggplot has 3 parts
+
+```{r}
+library(ggplot2)
+
+ggplot(by_country, aes(x = year, y = percent_yes)) + geom_line()
+```
+
+| by country  |                                                              |
+| ----------- | ------------------------------------------------------------ |
+| by_country  | data.frame                                                   |
+| aes(x, y)   | mapping of the axes, such as year and percent_yes            |
+| geom_line() | add layers on the plot. geom means which geometric object we are adding to the plot. It can also be scatter plots |
+
+
+
+### EXERCISE 1: Plotting a line over time
+
+**Instructions**
+
+The `by_year` dataset has the number of votes and percentage of "yes" votes each year.
+
+- Load the `ggplot2` package.
+- Use `ggplot()` with the `geom_line` layer to create a line plot with `year` on the x-axis and `percent_yes` on the y-axis.
+
+```{r}
+# Define by_year
+by_year <- votes_processed %>%
+  group_by(year) %>%
+  summarize(total = n(),
+            percent_yes = mean(vote == 1))
+
+# Load the ggplot2 package
+library(ggplot2)
+
+# Create line plot
+ggplot(by_year, aes(x = year, y = percent_yes)) + geom_line()
+```
+
+The result:
+
+![1](C:\R\r_casestudy_datacamp\1.png)
+
+**Other ggplot layers**
+
+- `geom_point()`  to display it as a scatter plot
+
+- You can also add additional layers to your graph, such as a smoothing curve with `geom_smooth()`.
+
+```{r}
+# Change to scatter plot and add smoothing curve
+ggplot(by_year, aes(year, percent_yes)) +
+  geom_point() + geom_smooth()
+```
+
+![2](C:\R\r_casestudy_datacamp\2.png)
+
+
+
+## 2.2 Visualizing by country
+
+Mixing all the countries in one trend does not tells us much about international relations. If I want to plot the trend for only one country and plot.
+
+Now you are going to summarize by both. 
+
+First, group by by 2 vars, country and year, then  filter to only one country
+
+```{r}
+# Summarizing by year and country
+by_year_country <- votes_processed %>%
+    group_by(country, year) %>%
+    summarize(total = n(), percent_yes = mean(vote == 1))
+
+# A tibble: 4,744 x 4
+# Groups:   year [?]
+    year country                         total percent_yes
+   <dbl> <chr>                           <int>       <dbl>
+ 1  1947 Afghanistan                        34       0.382
+ 2  1947 Argentina                          38       0.579
+ 3  1947 Australia                          38       0.553
+ 4  1947 Belarus                            38       0.5  
+ 5  1947 Belgium                            38       0.605
+ 6  1947 Bolivia, Plurinational State of    37       0.595
+ 7  1947 Brazil                             38       0.658
+ 8  1947 Canada                             38       0.605
+ 9  1947 Chile                              38       0.658
+10  1947 Colombia                           35       0.543
+# ... with 4,734 more rows
+
+by_year_country %>%
+    filter(country == "United States")
+```
+
+
+
+### The `%in%` operator
+
+determines whether the elements of the 1st vector is in the 2nd vetor
+
+```{r}
+c("A", "B", "C", "D", "E") %in% c("B", "E")
+```
+
+```{r}
+us_france <- by_year_country %>%
+    filter(country %in% c("United States", "France"))
+```
+
+### 2.2.1 show both countries in the same ggplot 
+
+To distinguish them, I need to add another aesthetic besides (x, y) to `aes()` .
+
+```{r}
+ggplot(us_france, aes(x = year, y = percent_yes, color = country)) + geom_line()
+```
+
+By adding `color = country` to `aes()`, I can plot both in one graph, with a legend distinguishing them.
+
+### EXERCISE2: Plotting just UK over time
+
+**Instructions**
+
+- Print the `by_year_country` dataset.
+- Create a filtered version of the dataset called `UK_by_year`.
+- Create a line plot of the percentage of "yes" votes over time for the United Kingdom.
+
+```{r}
+# Start with by_year_country dataset
+by_year_country <- votes_processed %>%
+  group_by(year, country) %>%
+  summarize(total = n(),
+            percent_yes = mean(vote == 1))
+
+# Print by_year_country
+by_year_country
+
+# Create a filtered version: UK_by_year
+UK_by_year <- by_year_country %>% 
+    filter(country == "United Kingdom")
+
+# Line plot of percent_yes over time for UK only
+ggplot(UK_by_year, aes(x = year, y = percent_yes)) + geom_line()
+```
+
+![3](C:\R\r_casestudy_datacamp\3.png)
+
+
+
+### EXERCISE3: Plotting multiple countries
+
+You'll have to filter to include all *four* of these countries and use another aesthetic (not just x- and y-axes) to distinguish the countries on the resulting visualization. Instead, you'll use the color aesthetic to represent different countries.
+
+**Insturctions**
+
+The `by_year_country` dataset you created in the last exercise is available in your workspace.
+
+- Create a filtered version of `by_year_country` called `filtered_4_countries` with just the countries listed in the editor (you may find the `%in%` operator useful here).
+- Show the trend for each of these countries on the same graph, using color to distinguish each country.
+
+```{r}
+# Vector of four countries to examine
+countries <- c("United States", "United Kingdom",
+               "France", "India")
+
+# Filter by_year_country: filtered_4_countries
+filtered_4_countries <- by_year_country %>%
+    filter(country %in% countries)
+
+# Line plot of % yes in four countries
+ggplot(filtered_4_countries, aes(x = year, y = percent_yes, color = country)) + geom_line()
+```
+
+![4](C:\R\r_casestudy_datacamp\4.png)
+
+
+
+## 2.3 Faceting
+
+But graphing too many countries in one plot will be a mess
+
+-> Alternative approach: **faceting** or **sub-plot** for each country
+
+```{r}
+ggplot(filtered_4_countries, aes(x = year, y = percent_yes)) +
+    geom_line() +
+    facet_wrap(~ country)
+    #in R the ~ means 'explained by'
+```
+
+But the all 6 graphs have the same y-axis, which waste the space and compressed the trend for single country. To avoid this by adding a second arg
+
+```{r}
+ggplot(filtered_4_countries, aes(x = year, y = percent_yes)) +
+    geom_line() +
+    facet_wrap(~ country, scales = "free_y")
+    # specify the way of scales, so that dif plot have dif scales
+```
+
+Though the free scales makes it difficult to compare dif countries, it is an option worth being aware of.
+
+### EXERCISE 4: Faceting by country
+
+**Instructions**
+
+- Create a filtered version that contains these six countries called `filtered_6_countries`.
+- Use the filtered dataset (containing summarized data for six countries) to create a plot with one facet for each country.
+
+```{r}
+# Vector of six countries to examine
+countries <- c("United States", "United Kingdom",
+               "France", "Japan", "Brazil", "India")
+
+# Filtered by_year_country: filtered_6_countries
+filtered_6_countries <- filter(by_year_country, country %in% countries)
+
+# Line plot of % yes over time faceted by country
+ggplot(filtered_6_countries, aes(x = year, y = percent_yes)) +
+  geom_line() +
+  facet_wrap(~ country) # No free_y
+```
+
+![5](C:\R\r_casestudy_datacamp\5.png)
+
+```{r}
+# Vector of six countries to examine
+countries <- c("United States", "United Kingdom",
+               "France", "Japan", "Brazil", "India")
+
+# Filtered by_year_country: filtered_6_countries
+filtered_6_countries <- filter(by_year_country, country %in% countries)
+
+# Line plot of % yes over time faceted by country
+ggplot(filtered_6_countries, aes(x = year, y = percent_yes)) +
+  geom_line() +
+  facet_wrap(~ country, scales = "free_y") 
+  # Free Y
+```
+
+![6](C:\R\r_casestudy_datacamp\6.png)
+
+```{r}
+# Add 3 more countries to this list
+countries <- c("Pakistan", "China", "Russian Federation", "United States", "United Kingdom", "France", "Japan", "Brazil", "India")
+
+# Filtered by_year_country: filtered_countries
+filtered_countries <- by_year_country %>%
+  filter(country %in% countries)
+
+# Line plot of % yes over time faceted by country
+ggplot(filtered_countries, aes(year, percent_yes)) +
+  geom_line() +
+  facet_wrap(~ country, scales = "free_y")
+```
+
+![7](C:\R\r_casestudy_datacamp\7.png)
+
+
+
+# 3. Tidy modeling with `broom`
+
+
+
+## 3.1 Linear Regression
+
+Better to quantify the trend, finding the best fit line for each country
+
+ First, extract one country data with `filter()`
+
+Then lm() function to fit the line
+
+```{r}
+model <- lm(percent_yes ~ year, data = afghanistan)
+# percent_yes is the DV, on y-axis
+# year = IV on x_axis
+
+# we can find the summary of the model
+summary(model)
+
+```
+
+> Visualization can surprise you, but it doesn't scale well. Modeling scales well, but it can't surprise you.
+
+​    -Hadley Wickham
+
+We can compare all datasets at once, learned in this course
+
+### EXERCISE 1: Linear regression on the US
+
+ **Insturctions**
+
+- Print the `US_by_year` data to the console.
+- Using just the US data in `US_by_year`, use `lm()` to run a linear regression predicting `percent_yes` from `year`. Save this to a variable `US_fit`.
+- Summarize `US_fit` using the `summary()` function.
+
+```{r}
+# Percentage of yes votes from the US by year: US_by_year
+US_by_year <- by_year_country %>%
+  filter(country == "United States")
+
+# Print the US_by_year data
+US_by_year # Result 1
+
+# Perform a linear regression of percent_yes by year: US_fit
+US_fit <- lm(percent_yes ~ year, data = US_by_year)
+
+# Perform summary() on the US_fit object
+summary(US_fit) # Result 2
+```
+
+The result:
+
+```{r}
+>US_by_year
+# A tibble: 34 x 4
+    year country       total percent_yes
+   <dbl> <chr>         <int>       <dbl>
+ 1  1947 United States    38       0.711
+ 2  1949 United States    64       0.281
+ 3  1951 United States    25       0.4  
+ 4  1953 United States    26       0.5  
+ 5  1955 United States    37       0.622
+ 6  1957 United States    34       0.647
+ 7  1959 United States    54       0.426
+ 8  1961 United States    75       0.507
+ 9  1963 United States    32       0.5  
+10  1965 United States    41       0.366
+# ... with 24 more rows
+
+> summary(US_fit)
+
+Call:
+lm(formula = percent_yes ~ year, data = US_by_year)
+
+Residuals:
+      Min        1Q    Median        3Q       Max 
+-0.222491 -0.080635 -0.008661  0.081948  0.194307 
+
+Coefficients:
+              Estimate Std. Error t value Pr(>|t|)    
+(Intercept) 12.6641455  1.8379743   6.890 8.48e-08 ***
+year        -0.0062393  0.0009282  -6.722 1.37e-07 ***
+---
+Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+
+Residual standard error: 0.1062 on 32 degrees of freedom
+Multiple R-squared:  0.5854,	Adjusted R-squared:  0.5724 
+F-statistic: 45.18 on 1 and 32 DF,  p-value: 1.367e-07
+```
+
+
+
+## 3.2 Tidying models with `broom`
+
+A model fit is a "messy" object and models are difficult to combine
+
+Hard to compare models and visualize them together
+
+**`broom` turns a model's coefficients into a data frame with `tidy()`**
+
+```{r}
+library(broom)
+tidy(model)
+```
+
+If you have multiple models, you can combine their coefficients into one data.frame with `bind_rows()`
+
+```{r}
+bind_rows(tidy(model1), tidy(model2))
+```
+
+### EXERCISE2: tidying a linear regression model
+
+```{r}
+# Load the broom package
+library(broom)
+
+# Call the tidy() function on the US_fit object
+tidy(US_fit)
+```
+
+### EXERCISE3: combining models for multiple countries
+
+One important advantage of changing models to tidied data frames is that they can be combined.
+
+**Instructions**
+
+- Fit a model for the United Kingdom similar to the one you fit for the US and save it as `UK_fit`.
+- Tidy `US_fit` into a data frame called `US_tidied` and the UK model into `UK_tidied`.
+- Use `bind_rows()` from `dplyr` to combine the two tidied models, printing the result to the console.
+
+```{r}
+# Linear regression of percent_yes by year for US
+US_by_year <- by_year_country %>%
+  filter(country == "United States")
+US_fit <- lm(percent_yes ~ year, US_by_year)
+
+# Fit model for the United Kingdom
+UK_by_year <- by_year_country %>%
+  filter(country == "United Kingdom")
+UK_fit <- lm(percent_yes ~ year, data = UK_by_year)
+
+# Create US_tidied and UK_tidied
+US_tidied <- tidy(US_fit)
+UK_tidied <- tidy(UK_fit)
+
+# Combine the two tidied models
+bind_rows(US_tidied, UK_tidied)
+```
+
+The result:
+
+```{r}
+> bind_rows(US_tidied, UK_tidied)
+         term     estimate    std.error statistic      p.value
+1 (Intercept) 12.664145512 1.8379742715  6.890274 8.477089e-08
+2        year -0.006239305 0.0009282243 -6.721764 1.366904e-07
+3 (Intercept) -3.266547873 1.9577739504 -1.668501 1.049736e-01
+4        year  0.001869434 0.0009887262  1.890750 6.774177e-02
+```
+
+
+
+## 3.3 Nesting for multiple models
+
+In these next 2 sessions, we are gonna discuss fitting many models, in particular, one model for each country
+
+First, filter the by_year_country on every country, so that we could plot accordingly. But we gonna to do it for each country. To do this, we us **`nest()`** from the **`tidyr` **package.
+
+```{r}
+library(tidyr)
+by_year_country %>%
+    nest(-country)
+    # "minus country" means nesting all of the columns except country, all the other columns has been nested into a variable called "data"
+```
+
+The result is here:
+
+```{r}
+# A tibble: 200 x 2
+   country                         data             
+   <chr>                           <list>           
+ 1 Afghanistan                     <tibble [34 x 3]>
+ 2 Argentina                       <tibble [34 x 3]>
+ 3 Australia                       <tibble [34 x 3]>
+ 4 Belarus                         <tibble [34 x 3]>
+ 5 Belgium                         <tibble [34 x 3]>
+ 6 Bolivia, Plurinational State of <tibble [34 x 3]>
+ 7 Brazil                          <tibble [34 x 3]>
+ 8 Canada                          <tibble [34 x 3]>
+ 9 Chile                           <tibble [34 x 3]>
+10 Colombia                        <tibble [34 x 3]>
+# ... with 190 more rows
+```
+
+### 3.3.1 List columns
+
+This "nested" data has an interesting structure. The second column, `data`, is a **list**, a type of R object that hasn't yet come up in this course that allows complicated objects to be stored within each row. This is because each item of the `data` column is itself a data frame.
+
+### 3.3.2 Unnesting
+
+**`unnest()`** does the opposite, brings the rows from each individual back up into the top level of the dtaframe.
+
+```{r}
+by_year_country %>%
+    nest(-country) %>%
+    unnest(data)
+```
+
+### 3.3.3 How to get row index in R
+
+```{r}
+# match returns the index
+index <- match("Brazil", nested$country)
+
+# put the index in referencing a list
+nested$data[[index]]
+```
+
+
+
+### EXERCISE 4: Access the list column
+
+You can use `nested$data` to access this list column and double brackets to access a particular element. For example, `nested$data[[1]]` would give you the data frame with Afghanistan's voting history (the `percent_yes` per year), since Afghanistan is the first row of the table.
+
+```{r}
+# All countries are nested besides country
+nested <- by_year_country %>%
+  nest(-country)
+
+# Print the nested data for Brazil
+nested$data[[7]]
+# More automotive
+nested$data[[match("Brazil", nested$country)]]
+```
+
+
+
+## 3.4 Fitting multiple models
+
+**4 steps**
+
+1. Nested by country
+2. map to fit a model to each dataset
+3. map to tidy to each model
+4. unnest to a table of coefficients
+
+
+
+`nest()` turns data into one country per row
+
+To fit data for each item in a list column, I need to use the `purrr` package, which offers tools to work with functions in lists. In particular, I need to use the `map()` function.
+
+**map() applies an operation to each item in a list.**
+
+e.g.
+
+```{r}
+> v <- list(1, 2, 3)
+> ,ap(v, ~ * 10)
+[[1]]
+[1] 10
+
+[[2]]
+[1] 20
+
+[[3]
+[1] 30
+```
+
+The `map()` function from `purrr` works by applying a formula to each item in a list, where **`.`represents the individual item in the list**. For example, you could add one to each of a list of numbers:
+
+```{r}
+map(numbers, ~ 1 + .)
+```
+
+This means that to fit a model to each dataset, you can do:
+
+```{r}
+map(data, ~ lm(percent_yes ~ year, data = .))
+```
+
+where `.` represents each individual item from the `data` column in `by_year_country`. Recall that each item in the `data` column is a dataset that pertains to a specific country.
+
+### 3.4.1 Performing linear regression on each nested dataset
+
+```{r}
+library(dplyr)
+library(tidyr) 
+library(purrr)
+library(broom)
+
+country_coefficients <- by_year_country %>%
+    # 1 nest by country
+    nest(-country) %>%
+    # 2 map to fit the model in a dataset
+    mutate(models = map(data, ~ lm(percent_yes ~ year, .))) %>%
+                                             # dot as the data\
+    # 3 map to tidy each model, becausetidid versions of models are easier to combine
+    mutate(tidied = map(models, tidy)) %>%
+    # 4 unnest() combines the tidied models
+    unnest(tidied)
+```
+
+The result:
+
+```{r}
+> country_coefficients
+# A tibble: 399 x 6
+   country     term         estimate std.error statistic       p.value
+   <chr>       <chr>           <dbl>     <dbl>     <dbl>         <dbl>
+ 1 Afghanistan (Intercept) -11.1      1.47         -7.52 0.0000000144 
+ 2 Afghanistan year          0.00601  0.000743      8.09 0.00000000306
+ 3 Argentina   (Intercept)  -9.46     2.10         -4.50 0.0000832    
+ 4 Argentina   year          0.00515  0.00106       4.85 0.0000305    
+ 5 Australia   (Intercept)  -4.55     2.15         -2.12 0.0422       
+ 6 Australia   year          0.00257  0.00108       2.37 0.0242       
+ 7 Belarus     (Intercept)  -7.00     1.50         -4.66 0.0000533    
+ 8 Belarus     year          0.00391  0.000759      5.15 0.0000128    
+ 9 Belgium     (Intercept)  -5.85     1.52         -3.86 0.000522     
+10 Belgium     year          0.00320  0.000765      4.19 0.000207     
+# ... with 389 more rows
+```
+
+
+
+## 3.5 Working with many tidy models
+
+Now we can manipulate `country_coefficients` with `dplyr`
+
+Business goal: How country change over time the slope, not where it stated -- the intercept. So filter for year term(slope)
+
+```{r}
+country_coefficients %>%
+    filter(term == "year")
+```
+
+Not all of the slope can be trusted, some may be due to random noise, only keep those statistically significant -> P < 0.05. We need multiple hypothesis correction because some p-values may be less than .05 by chance.
+
+**Filter by adjusted p_value**
+
+```{r}
+country_coefficients %>%
+    filter(term == "year", p.adjust(p.value) <.05)
+```
+
+In exercises, you will find the trend over time with arrange()
+
+### EXERCISE 5: 
+
+- Filtering model terms
+- Filtering for significant countries
+- Sorting by slope
+
+
+
+```{r}
+# Filter for only the slope terms
+slope_terms <- country_coefficients %>%
+  filter(term == "year")
+
+# Add p.adjusted column, then filter
+filtered_countries <- slope_terms  %>%
+  mutate(p.adjusted = p.adjust(p.value)) %>%
+  filter(p.adjusted < .05)
+
+
+```
+
+
+
+```{r}
+> filtered_countries
+# A tibble: 61 x 7
+   country             term  estimate std.error statistic    p.value p.adjusted
+   <chr>               <chr>    <dbl>     <dbl>     <dbl>      <dbl>      <dbl>
+ 1 Afghanistan         year   0.00601  0.000743      8.09    3.06e-9    5.95e-7
+ 2 Argentina           year   0.00515  0.00106       4.85    3.05e-5    4.81e-3
+ 3 Belarus             year   0.00391  0.000759      5.15    1.28e-5    2.08e-3
+ 4 Belgium             year   0.00320  0.000765      4.19    2.07e-4    3.01e-2
+ 5 Bolivia, Plurinati~ year   0.00580  0.000966      6.01    1.06e-6    1.88e-4
+ 6 Brazil              year   0.00611  0.000817      7.48    1.64e-8    3.12e-6
+ 7 Chile               year   0.00678  0.000822      8.24    2.05e-9    3.99e-7
+ 8 Colombia            year   0.00616  0.000965      6.38    3.58e-7    6.56e-5
+ 9 Costa Rica          year   0.00654  0.000812      8.05    3.39e-9    6.54e-7
+10 Cuba                year   0.00461  0.000721      6.40    3.43e-7    6.31e-5
+# ... with 51 more rows
+```
+
+
+
+# 4. Joining and Tidying
+
+Exploration of voting data does not bring much information, we need to combine the dataset with political topics. It comes to the `Descriptions` dataset
+
+Descriptions provides information about each vote
+
+| Columns |                                                              |
+| ------- | ------------------------------------------------------------ |
+| rcid    | in common with votes_processed                               |
+| session | in common with votes_processed                               |
+| date    | the date votes voted                                         |
+| unres   | UN's resolution to apply                                     |
+| me-ec   | topic information, related to 1 or 6 topics, e.g. hr = human rights |
+
+There are six columns in the `descriptions` dataset (and therefore in the new joined dataset) that describe the topic of a resolution:
+
+1. **me**: Palestinian conflict
+2. **nu**: Nuclear weapons and nuclear material
+3. **di**: Arms control and disarmament
+4. **hr**: Human rights
+5. **co**: Colonialism
+6. **ec**: Economic development
+
+## 4.1 `inner_join()` of `dplyr`
+
+uses  the `by` arg to note the column(s) they have in common
+
+```{r}
+votes_joined <- votes_processed %>%
+    inner_join(descriptions, by = c("rcid", "session"))
+```
+
+```{r}
+> votes_joined
+# A tibble: 353,547 x 14
+    rcid session  vote ccode  year country      date                unres    me
+   <dbl>   <dbl> <dbl> <int> <dbl> <chr>        <dttm>              <chr> <dbl>
+ 1    46       2     1     2  1947 United Stat~ 1947-09-04 00:00:00 R/2/~     0
+ 2    46       2     1    20  1947 Canada       1947-09-04 00:00:00 R/2/~     0
+ 3    46       2     1    40  1947 Cuba         1947-09-04 00:00:00 R/2/~     0
+ 4    46       2     1    41  1947 Haiti        1947-09-04 00:00:00 R/2/~     0
+ 5    46       2     1    42  1947 Dominican R~ 1947-09-04 00:00:00 R/2/~     0
+ 6    46       2     1    70  1947 Mexico       1947-09-04 00:00:00 R/2/~     0
+ 7    46       2     1    90  1947 Guatemala    1947-09-04 00:00:00 R/2/~     0
+ 8    46       2     1    91  1947 Honduras     1947-09-04 00:00:00 R/2/~     0
+ 9    46       2     1    92  1947 El Salvador  1947-09-04 00:00:00 R/2/~     0
+10    46       2     1    93  1947 Nicaragua    1947-09-04 00:00:00 R/2/~     0
+# ... with 353,537 more rows, and 5 more variables: nu <dbl>, di <dbl>,
+#   hr <dbl>, co <dbl>, ec <dbl>
+```
+
+### EXERCISE 1: Visualizing colonialism votes
+
+**Instructions**
+
+- Load the `ggplot2` package.
+- Filter the `votes_joined` dataset for only votes by the United States relating to colonialism, then `summarize()` the percentage of votes that are "yes" within each `year`. Name the resulting column `percent_yes` and save the entire data frame as `US_co_by_year`.
+- Add a `geom_line()` layer to your `ggplot()` call to create a line graph of the percentage of "yes" votes on colonialism (`percent_yes`) cast by the US over time.
+
+```{r}
+# Load the ggplot2 package
+library(ggplot2)
+
+# Filter, then summarize by year: US_co_by_year
+US_co_by_year <- votes_joined %>%
+    filter(country == "United States", co == 1) %>%
+    group_by(year) %>%
+    summarize(percent_yes = mean(vote == 1))
+
+# Graph the % of "yes" votes over time
+ggplot(US_co_by_year, aes(x = year, y = percent_yes)) + geom_line()
+```
+
+The result:
+
+![8](C:\R\r_casestudy_datacamp\8.png)
+
+## 4.2 Tidy data with `gather()` in the `tidyr`
+
+Use one sub-graph for each topic, but is only possible when each row corresponds to only one combination of **country, year, and topic**, this allows every ob in the data to map one point on your plot. We call this arrangement tidy. 
+
+```{r}
+votes_joined %>%
+    select(rcid, session, vote, country, me:ec)
+```
+
+each topic has a column, we need to integrate them into single variable, which can be done with the gather() function 
+
+### 4.2.1 `gather()`
+
+gather() is a reshaping operation. It take any number of columns and collapses them into 2, the **key** and **value**
+
+![9](C:\R\r_casestudy_datacamp\9.JPG)
+
+```{r}
+library(tidyr)
+
+votes_gathered <- votes_joined %>%
+# names of key and value, gather thru "me" to "ec"
+    gather(topic, has_topic, me:ec) %>%
+# But not all key has a TRUE value, so filter out
+    fitler(has_topic == 1)
+```
+
+The result:
+
+```{r}
+> votes_gathered
+# A tibble: 350,032 x 10
+    rcid session  vote ccode  year country     date                unres  topic
+   <dbl>   <dbl> <dbl> <int> <dbl> <chr>       <dttm>              <chr>  <chr>
+ 1    77       2     1     2  1947 United Sta~ 1947-11-06 00:00:00 R/2/1~ me   
+ 2    77       2     1    20  1947 Canada      1947-11-06 00:00:00 R/2/1~ me   
+ 3    77       2     3    40  1947 Cuba        1947-11-06 00:00:00 R/2/1~ me   
+ 4    77       2     1    41  1947 Haiti       1947-11-06 00:00:00 R/2/1~ me   
+ 5    77       2     1    42  1947 Dominican ~ 1947-11-06 00:00:00 R/2/1~ me   
+ 6    77       2     2    70  1947 Mexico      1947-11-06 00:00:00 R/2/1~ me   
+ 7    77       2     1    90  1947 Guatemala   1947-11-06 00:00:00 R/2/1~ me   
+ 8    77       2     2    91  1947 Honduras    1947-11-06 00:00:00 R/2/1~ me   
+ 9    77       2     2    92  1947 El Salvador 1947-11-06 00:00:00 R/2/1~ me   
+10    77       2     1    93  1947 Nicaragua   1947-11-06 00:00:00 R/2/1~ me   
+# ... with 350,022 more rows, and 1 more variable: has_topic <dbl>
+```
+
+
+
+### EXERCISE 2: Tidy data obervations
+
+![10](C:\R\r_casestudy_datacamp\10.png)
+
+According to the tidy data framework, which of the following counts as an observation in this graph?
+
+- [ ] A country
+- [ ] A vote
+- [ ] A country-vote combination
+- [ ] A country-topic combination
+- [x] A country-vote-topic combination
+
+### 4.2.2 Recoding the topics
+
+So that you can interpret the data more easily, recode the data to replace these codes with their full name. You can do that with `dplyr`'s **`recode()`** function, which replaces values with ones you specify:
+
+```{r}
+example <- c("apple", "banana", "apple", "orange")
+recode(example,
+       apple = "plum",
+       banana = "grape")
+```
+
+```{r}
+# Replace the two-letter codes in topic: votes_tidied
+votes_tidied <- votes_gathered %>%
+  mutate(topic = recode(topic,
+                        "me" = "Palestinian conflict",
+                        "nu" = "Nuclear weapons and nuclear material",
+                        "di" = "Arms control and disarmament",
+                        "hr" = "Human rights",
+                        "co" = "Colonialism",
+                        "ec" = "Economic development"))
+```
+
+
+
+### EXERCISE3: Summarize by country, year, and topic
+
+**Instructions**
+
+- Print the `votes_tidied` dataset to the console.
+- In a single `summarize()` call, compute both the total number of votes (`total`) and the percentage of "yes" votes (`percent_yes`) for each combination of country, year, and topic. Save this as `by_country_year_topic`. Make sure that you `ungroup()` after summarizing.
+- Print the `by_country_year_topic` dataset to the console.
+
+```{r}
+# Print votes_tidied
+votes_tidied
+
+# Summarize the percentage "yes" per country-year-topic
+by_country_year_topic <- votes_tidied %>%
+    group_by(country, year, topic) %>%
+    summarize(total = n(), percent_yes = mean(vote ==1)) %>%
+    ungroup()
+
+# Print by_country_year_topic
+by_country_year_topic
+```
+
+The result:
+
+```{r}
+> by_country_year_topic
+# A tibble: 26,968 x 5
+   country      year topic                                total percent_yes
+   <chr>       <dbl> <chr>                                <int>       <dbl>
+ 1 Afghanistan  1947 Colonialism                              8       0.5  
+ 2 Afghanistan  1947 Economic development                     1       0    
+ 3 Afghanistan  1947 Human rights                             1       0    
+ 4 Afghanistan  1947 Palestinian conflict                     6       0    
+ 5 Afghanistan  1949 Arms control and disarmament             3       0    
+ 6 Afghanistan  1949 Colonialism                             22       0.864
+ 7 Afghanistan  1949 Economic development                     1       1    
+ 8 Afghanistan  1949 Human rights                             3       0    
+ 9 Afghanistan  1949 Nuclear weapons and nuclear material     3       0    
+10 Afghanistan  1949 Palestinian conflict                    11       0.818
+# ... with 26,958 more rows
+```
+
+If I do not ungroup the by_country_year_topic, the group will remain and displayed in the result
+
+```{r}
+# Summarize the percentage "yes" per country-year-topic
+by_country_year_topic <- votes_tidied %>%
+    group_by(country, year, topic) %>%
+    summarize(total = n(), percent_yes = mean(vote ==1)) 
+    # %>% ungroup(), do not ungroup
+
+# Print by_country_year_topic
+by_country_year_topic
+
+# A tibble: 26,968 x 5
+# Groups:   country, year [?]
+   country      year topic                                total percent_yes
+   <chr>       <dbl> <chr>                                <int>       <dbl>
+ 1 Afghanistan  1947 Colonialism                              8       0.5  
+ 2 Afghanistan  1947 Economic development                     1       0    
+ 3 Afghanistan  1947 Human rights                             1       0    
+ 4 Afghanistan  1947 Palestinian conflict                     6       0    
+ 5 Afghanistan  1949 Arms control and disarmament             3       0    
+ 6 Afghanistan  1949 Colonialism                             22       0.864
+ 7 Afghanistan  1949 Economic development                     1       1    
+ 8 Afghanistan  1949 Human rights                             3       0    
+ 9 Afghanistan  1949 Nuclear weapons and nuclear material     3       0    
+10 Afghanistan  1949 Palestinian conflict                    11       0.818
+# ... with 26,958 more rows
+```
+
+
+
+### EXERCISE 4: Visualizing trends in topics for one country
+
+Here, you'll visualize the six topics side-by-side just for the United States.
+
+**Instructions**
+
+- Load the `ggplot2` package.
+- Filter the `by_country_year_topic` dataset for just the United States and save the result as `US_by_country_year_topic`.
+- Use this dataset to graph the percentage "yes" over time for the United States, faceting by topic.
+
+```{r}
+# Load the ggplot2 package
+library(ggplot2)
+
+# Filter by_country_year_topic for just the US
+US_by_country_year_topic <- by_country_year_topic %>%
+    filter(country == "United States")
+
+# Plot % yes over time for the US, faceting by topic
+ggplot(US_by_country_year_topic, aes(x = year, y = percent_yes)) + geom_line() + facet_wrap(~topic)
+```
+
+The result:
+
+![11](C:\R\r_casestudy_datacamp\11.png)
+
+## 4.3 Tidy modeling by topic and country with `broom`
+
+Detecting a trend by topic
+
+```{r}
+# Load purrr, tidyr, and broom
+library(purrr)
+library(broom)
+library(tidyr)
+
+# Print by_country_year_topic
+by_country_year_topic
+
+# Simply except country and topic, the other steps are identical
+# Fit model on the by_country_year_topic dataset
+country_topic_coefficients <- by_country_year_topic %>%
+  nest(-country, -topic) %>%
+  mutate(model = map(data, ~ lm(percent_yes ~ year, data = .)),
+         tidied = map(model, tidy)) %>%
+  unnest(tidied)
+
+# Print country_topic_coefficients
+country_topic_coefficients
+```
+
+The result:
+
+```{r}
+> country_topic_coefficients
+# A tibble: 2,383 x 7
+   country     topic             term     estimate std.error statistic  p.value
+   <chr>       <chr>             <chr>       <dbl>     <dbl>     <dbl>    <dbl>
+ 1 Afghanistan Colonialism       (Interc~ -9.20e+0  1.96         -4.70  4.76e-5
+ 2 Afghanistan Colonialism       year      5.11e-3  0.000989      5.17  1.23e-5
+ 3 Afghanistan Economic develop~ (Interc~ -1.15e+1  3.62         -3.17  3.49e-3
+ 4 Afghanistan Economic develop~ year      6.24e-3  0.00183       3.42  1.85e-3
+ 5 Afghanistan Human rights      (Interc~ -7.27e+0  4.37         -1.66  1.06e-1
+ 6 Afghanistan Human rights      year      4.08e-3  0.00221       1.85  7.43e-2
+ 7 Afghanistan Palestinian conf~ (Interc~ -1.33e+1  3.57         -3.73  8.66e-4
+ 8 Afghanistan Palestinian conf~ year      7.17e-3  0.00180       3.98  4.42e-4
+ 9 Afghanistan Arms control and~ (Interc~ -1.38e+1  4.13         -3.33  2.53e-3
+10 Afghanistan Arms control and~ year      7.37e-3  0.00208       3.54  1.49e-3
+# ... with 2,373 more rows
+```
+
+
+
+### EXERCISE 5: Interpreting tidy models
+
+```{R}
+# Create country_topic_filtered
+country_topic_filtered <- country_topic_coefficients %>%
+    filter(term == "year") %>%
+    mutate(p.adjusted = p.adjust(p.value)) %>%
+    filter(p.adjusted < .05)
+```
+
+
+
+### EXERCISE 6: Steepest *downward* trends by topic
+
+```{r}
+arrange(country_topic_filtered, estimate)
+```
+
+The result:
+
+```{r}
+# A tibble: 56 x 8
+   country       topic    term  estimate std.error statistic p.value p.adjusted
+   <chr>         <chr>    <chr>    <dbl>     <dbl>     <dbl>   <dbl>      <dbl>
+ 1 Vanuatu       Palesti~ year  -0.0327    0.00516     -6.33 2.60e-5  0.0295   
+ 2 Vanuatu       Colonia~ year  -0.0179    0.00271     -6.60 2.53e-5  0.0288   
+ 3 Malta         Nuclear~ year  -0.0112    0.00137     -8.15 3.14e-8  0.0000370
+ 4 Cyprus        Human r~ year  -0.0108    0.00196     -5.48 1.22e-5  0.0141   
+ 5 United States Palesti~ year  -0.0107    0.00194     -5.51 6.85e-6  0.00793  
+ 6 Cyprus        Nuclear~ year  -0.0107    0.00172     -6.20 1.76e-6  0.00206  
+ 7 Israel        Colonia~ year  -0.00953   0.00177     -5.38 7.19e-6  0.00831  
+ 8 Romania       Human r~ year  -0.00945   0.00185     -5.11 2.26e-5  0.0259   
+ 9 Malta         Arms co~ year  -0.00930   0.00109     -8.51 1.46e-8  0.0000172
+10 Cyprus        Arms co~ year  -0.00878   0.00123     -7.13 1.80e-7  0.000211 
+# ... with 46 more rows
+```
+
+### EXERCISE 7: Checking models visually
+
+**Instructions**
+
+- Filter the `by_country_year_topic` variable for only Vanuatu's votes to create a `vanuatu_by_country_year_topic` object.
+- Create a plot with `year` on the x-axis and `percent_yes` on the y-axis, and facet by topic.
+
+```{r}
+# Create vanuatu_by_country_year_topic
+vanuatu_by_country_year_topic <- by_country_year_topic %>%
+    filter(country == "Vanuatu")
+
+# Plot of percentage "yes" over time, faceted by topic
+ggplot(vanuatu_by_country_year_topic, aes(x = year, y = percent_yes)) + geom_line() + facet_wrap(~topic, scales = "free_y")
+```
+
+The result:
+
+![12](C:\R\r_casestudy_datacamp\12.png)
+
+
+
+# Conclusion
+
+![13](C:\R\r_casestudy_datacamp\13.JPG)
+
+![14](C:\R\r_casestudy_datacamp\14.JPG)
+

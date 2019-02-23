@@ -1,0 +1,1578 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Ctrl+Shift+Enter*. 
+
+```{r}
+plot(cars)
+```
+
+Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Ctrl+Alt+I*.
+
+When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Ctrl+Shift+K* to preview the HTML file).
+
+# Data Analysis in R, the data.table Way
+
+```{r}
+library(data.table)
+```
+
+# 1. Introduction to  [`data.table`](http://datatable.r-forge.r-project.org/datatable-faq.pdf)
+
+**What is data.table**
+
+= a set of columns, every column is the same length but not different type
+
+**General form**
+
+- data.table query
+
+| R    | SQL      |
+| ---- | -------- |
+| i    | WHERE    |
+| j    | SELECT   |
+| by   | GROUP BY |
+
+"Take DT, subset rows using **i**, then calculate **j** grouped by **by**"
+
+```{r}
+mtcarsDT[
+    # querying rows
+    map >20, 
+    
+    # And for the above rows
+    .(AvgHP = mean(hp),
+     "MinWT(kg)" = min(wt*453.6)), # wt lbs
+    
+    # grouping the rows by cylinder
+    by = .(cyl, under5gears = gear < 5)
+]
+```
+
+- Creating a table
+
+-- You can give columns with different lengths when creating a data.table, and R will "recycle" the shorter column to match the length of the longer one by re-using the first items.
+
+```{r}
+DT <- data.table(A = 1:6, B = c("a", "b", "c"), C = rnorm(6), D = TRUE)
+```
+
+```
+   A B          C    D
+1: 1 a  0.1304003 TRUE
+2: 2 b  2.4223515 TRUE
+3: 3 c -0.7322033 TRUE
+4: 4 a  0.4129960 TRUE
+5: 5 b -1.3481850 TRUE
+6: 6 c  1.2957534 TRUE
+```
+
+In the example below, column `x` is recycled to match the length of column `y`:
+
+```{r}
+data.table(x = c("A", "B"), y = 1:4)
+   x y
+1: A 1
+2: B 2
+3: A 3
+4: B 4
+```
+
+-- you can use `L` after a numeric to specify that it is an integer. 
+
+typeof(1) == "double"  i.e "numeric"
+
+typeof(1L) == "integer"
+
+
+
+typeof(NA) is by default "logical", 
+
+typeof(NA_integer_) == "integer"
+
+
+
+-- character type is quite efficient so we like them a lot in data.table, R won't remember the letters over and over again, it will cache the unique string values globally, and just have points in the vector to that global cache
+
+## 1.1 Selecting rows by number in i
+
+```{r}
+DT[3:5, ]
+# it doesn't matter if we forget the comma
+DT[3:5]
+```
+
+using integers in **i** to subset the data.table
+
+Contrast is that in data.frame, if we forget the comma, it returns an error message
+
+**Compatibility**
+
+- data.table is a data.frame too
+
+```{r}
+> class(DT)
+[1] "data.table" "data.frame"
+```
+
+- so it is accepted by all R base packages: if the package do not know data.table, it redirects to DF[...]
+
+### EXERCISE 1 Create and subset data.table
+
+**Instructions**
+
+- Create a data.table `my_first_data_table` with a column `x = c("a", "b", "c", "d", "e")` and a column `y = c(1, 2, 3, 4, 5)`. Use the function `data.table()`.
+- Create a two-column data.table `DT` that contains the four *integers* 1, 2, 1 and 2 in the first column `a` and the letters A, B, C and D in the second column `b`. Use recycling so that the contents of `a` will be automatically used twice. **Note that `LETTERS[1]` returns `"A"`, `LETTERS[2]` returns `"B"`, and so on.**
+- Select the third row of `DT` and just print the result to the console.
+- Select the second and third rows without using commas and print the result to the console.
+
+```{r}
+# The data.table package is preloaded
+
+# Create my_first_data_table
+my_first_data_table <- data.table(x = c("a", "b", "c", "d", "e"), 
+                                  y = c(1, 2, 3, 4, 5))  
+  
+# Create a data.table using recycling
+DT <- data.table(a = c(1L, 2L), b = LETTERS[1:4])
+
+# Print the third row to the console
+DT[3, ]
+
+# Print the second and third row to the console without using commas
+DT[2:3]
+```
+
+
+
+### EXERCISE 2 `head()`, `tail()`, `.N`, `names()`
+
+You can pass a data.table to base R functions like `head()` and `tail()` that accept a data.frame because data.tables are also data.frames. Also, keep in mind that the special symbol `.N`, when used inside square brackets, contains the number of rows. For example, `DT[.N]` and `DT[nrow(DT)]` will both return the last row in `DT`.
+
+**Instructions**
+
+- Select the **second to last**(倒数第二) row of the table using `.N`.
+- Return the column `names()` of the data.table.
+- Return the number of rows and number of columns of the data.table using the `dim()` function.
+- Select a row multiple times: Select **row 2 twice** and row 3 once, returning a data.table with three rows (two of which are identical).
+
+```{r}
+# DT and the data.table package are pre-loaded
+
+# Print the second to last row of DT using .N 
+DT[.N - 1, ]
+
+# Print the column names of DT
+names(DT)
+
+# Print the number or rows and columns of DT
+dim(DT)
+
+# Print a new data.table containing rows 2, 2, and 3 of DT
+DT[c(2, 2, 3),]
+```
+
+
+
+## 1.2 Selecting columns in j
+
+example:
+
+```{r}
+DT <- data.table(A = 1:5, B = letters[1:5], C = 6:10)
+DT
+```
+
+
+
+select columns: `j` can be used to select columns by wrapping the column names in      `.()`
+
+```{r}
+DT[, .(B, C)]
+```
+
+Note: `.()` is an alias to list in data.tables and they mean the same
+
+
+
+**Computing on columns** returns aggregate results
+
+```{r}
+DT[, .(Total = sum(A), Mean = mean(C))]
+```
+
+If we do not provide any column name, the data.table will automatically generate those values for us
+
+
+
+**Recycling in j**
+
+```{r}
+DT[, .(B, C = mean = sum(C))]
+```
+
+
+
+**Using columns as variables**
+
+In fact, we can put anything in j, it doesn't have to be an aggregate value
+
+In addition to selecting columns, you can also call functions on them as if the columns were variables. 
+
+```{r}
+DT[, plot(A,C)]
+```
+
+Also, multiple expressions in j
+
+```{r}
+DT[, { print(A)
+       hist(C)  # plotting a histogram of column C
+       NULL     }] # here, the hist() returns the value invisibly because we set the return value NULL in j
+```
+
+### EXERCISE 3
+
+When you use `.()` in j, the result is always a data.table. For convenience, data.table also provides the option to return a vector while computing on just a single column and not wrapping it with `.()`.
+
+```{r}
+> typeof(DT[, .(B)])
+[1] "list"
+> class(DT[, .(B)])
+[1] "data.table" "data.frame"
+> typeof(DT[, B])
+[1] "character"
+> class(DT[, B])
+[1] "character"
+```
+
+### EXERCISE 4 use names to point to columns
+
+By default, unlike a data.frame, the 2nd argument is an expression which is evaluated
+within the scope of DT. 5 evaluates to 5. It is generally bad practice to refer to columns by number rather than name. If someone else comes along and reads your code later, they may have to hunt around to nd out which column is number 5. Furthermore, if you or someone else changes the column ordering of DT higher up in your R program, you might get bugs if you forget to change all the places in your code which refer to column number 5.
+
+Say column 5 is called "region", just do DT[,region] instead. Notice there are no quotes around the column name.
+
+say D <- 5, `DT[, D]` returns 5 as vector, and `DT[, .(D)]` returns 5 as data.table.
+
+
+
+### EXERCISE 5 Subseting data.tables
+
+**Instructions**
+
+- Create a subset containing the columns `B` and `C` for rows 1 and 3 of `DT`. Simply print out this subset to the console.
+- From `DT`, create a data.table, `ans` with two columns: `B` and `val`, where `val` is the product of `A` and `C`.
+- Fill in the blanks in the assignment of `ans2`, such that it equals the data.table specified in `target`. Use columns from the previously defined data.tables to produce the `val` column.
+
+```{r}
+# DT and the data.table package are pre-loaded
+
+# Subset rows 1 and 3, and columns B and C
+DT[c(1, 3), .(B, C)]
+
+# Assign to ans the correct value
+ans <- DT[, .(B, val = A*C)]
+  
+# Fill in the blanks such that ans2 equals target
+target <- data.table(B = c("a", "b", "c", "d", "e", 
+                           "a", "b", "c", "d", "e"), 
+                     val = as.integer(c(6:10, 1:5)))
+ans2 <- DT[, .(B, val = c(C, A))]
+```
+
+
+
+## 1.3 Doing j by group -- the `by` argument
+
+example:
+
+```{r}
+> DT <- data.table(A = letters[3:1], B = 1:6)
+```
+
+If you supply a `j` expression and a `by` list of expressions, the `j` expression is repeated for each `by` group
+
+we simply pass the column names into the 3rd argument call -- by, and we use `.()` once again.
+
+```{r}
+DT[, .(MySum = sum(B),
+      MyMean = mean(B)),
+  by = .(A)]
+```
+
+```{r}
+   A MySum MyMean
+1: c     5    2.5
+2: b     7    3.5
+3: a     9    4.5
+```
+
+the groups are returned in the order that they first appeared. 
+
+**Function calls in by**
+
+```{r}
+DT <- data.table(A = 1:5, B = 10:14)
+```
+
+```{r}
+DT[, .(MySum = sum(B)), by = .(Grp = A %% 2)]
+```
+
+`%%2` returns whether the numbers are odd or even
+
+There is a shortcut in data.table: if you just have one item in j, or one item in by and don't mind too much about the output column names, we don't have to use the `.()`, and just use the aggregate directly
+
+**Grouping only on a subset**
+
+we can pass a row subset into i as  well
+
+```
+DT <- data.table(A = 1:5, B = 10:14)
+DT[2:4, sum(B), by = A%%2]
+```
+
+we are just doing the aggregation over those selected rows in i. And this time, **the even number comes first, because an even number appears first in the subset of rows
+
+### EXERCISE 6 Basics
+
+**Instructions**
+
+- Convert the `iris` dataset to a data.table `DT`. You're now ready to use data.table magic on it!
+- Create a new column containing the mean `Sepal.Length` for each `Species`. Do not provide a name for this newly created column.
+- Do exactly the same as in the instruction above, but this time, group by the first letter of the `Species` name instead. Use [substr()](https://stat.ethz.ch/R-manual/R-devel/library/base/html/substr.html) for this.
+
+```{r}
+# iris is already available in your workspace
+
+# Convert iris to a data.table: DT
+DT <- data.table(iris)
+
+# For each Species, print the mean Sepal.Length
+DT[, mean(Sepal.Length), by = Species]
+
+# Print mean Sepal.Length, grouping by first letter of Species
+DT[, mean(Sepal.Length), by = substr(Species, 1, 1)]
+```
+
+### EXERCISE 7: Using .N and by
+
+**Instructions**
+
+- Group the specimens by Sepal *area* (`Sepal.Length * Sepal.Width`) to the nearest 10 cm2cm2. Count how many occur in each group by specifying `.N` in `j`. Simply print the resulting data.table. Use the template in the sample code by filling in the blanks.
+- Copy and adapt the solution to the above question, to name the columns `Area` and `Count`, respectively.
+
+```{r}
+# data.table version of iris: DT
+DT <- as.data.table(iris)
+
+# Group the specimens by Sepal area (to the nearest 10 cm2) and count how many occur in each group
+DT[, .N, by = 10 * round(Sepal.Length * Sepal.Width / 10)]
+
+# Now name the output columns `Area` and `Count`
+DT[, .(Count = .N), by = .(Area = 10 * round(Sepal.Length * Sepal.Width / 10))]
+```
+
+
+
+### EXERCISE 8 Return multiple numbers in j
+
+**Instructions**
+
+- Create a new data.table `DT2` with 3 columns, `A`, `B` and `C`, where `C` is the cumulative sum of the `C` column of `DT`. Call the `cumsum()` function in the `j` argument, and group by `.(A, B)` (i.e. both columns `A` and `B`).
+- Select from `DT2` the last two values of `C` using the `tail()` function, and assign that to column `C` while you group by `A` alone. Make sure the column names don't change.
+
+```{r}
+# Create the data.table DT
+DT <- data.table(A = rep(letters[2:1], each = 4L), 
+                 B = rep(1:4, each = 2L), 
+                 C = sample(8))
+
+   A B C
+1: b 1 4
+2: b 1 8
+3: b 2 5
+4: b 2 6
+5: a 3 7
+6: a 3 2
+7: a 4 3
+8: a 4 1
+
+# Create the new data.table, DT2
+DT2 <- DT[, .(C = cumsum(C)), by = .(A, B)]
+
+# result
+   A B  C
+1: b 1  4
+2: b 1 12
+3: b 2  5
+4: b 2 11
+5: a 3  7
+6: a 3  9
+7: a 4  3
+8: a 4  4
+
+# Select from DT2 the last two values from C while you group by A
+DT2[, .(C = tail(C ,2)), by = .(A)]
+# the following will leave the column name to auto assignment
+DT2[, tail(C ,2), by = .(A)]
+```
+
+```{r}
+> DT2
+   A B  C
+1: b 1  3
+2: b 1  8
+3: b 2  7
+4: b 2  9
+5: a 3  8
+6: a 3 14
+7: a 4  1
+8: a 4  5
+> DT2[, .(C = tail(C ,2)), by = .(A)]
+   A C
+1: b 7
+2: b 9
+3: a 1
+4: a 5
+```
+
+
+
+# 2. Extensions about things in `i`, `j`, `by =` 
+
+
+
+## 2.1 Chaining -- data.table's pipe
+
+example
+
+```{r}
+DT <- data.table(A = letters[3:1], B = 1:6)
+```
+
+Sort & chain
+
+```{r}
+ans <- DT[, sum(B), by = A]
+ans[order(A)]
+# Or by chaining
+ans <- DT[, sum(B), by = A][order(A)]
+```
+
+Chaining allows the concatenation of multiple operations in a single expression. very convenient
+
+### EXERCISE 1 basics of chaining
+
+**Instructions**
+
+In the previous section, you calculated `DT2` by taking the cumulative sum of `C` while grouping by `A` and `B`. Next, you selected the last two values of `C` from `DT2` while grouping by `A` alone. This code is included in the sample code. Use chaining to restructure the code. Simply print out the result of chaining.
+
+```{r}
+# Combine the two steps in a one-liner
+DT[, .(C = cumsum(C)), by = .(A, B)][, .(C = tail(C, 2)), by = A]
+```
+
+### EXERCISE 2 Chaining your iris dataset
+
+**Instructions**
+
+Get the median of each of the four columns `Sepal.Length`, `Sepal.Width`, `Petal.Length` and `Petal.Width`, while grouping by `Species`. Reuse the same column names (e.g. the column containing the median `Sepal.Length` is still called `Sepal.Length`). Next, `order()` `Species` in descending order using chaining. *This is deliberately repetitive, but we have a solution for you in the next exercise!*
+
+Use `[order(-Species)]` as the second `data.table` operation. to fulfill the descending order
+
+```{r}
+# Perform chained operations on DT
+DT[, .(Sepal.Length = median(Sepal.Length), 
+       Sepal.Width = median(Sepal.Width), 
+       Petal.Length = median(Petal.Length),
+       Petal.Width = median(Petal.Width)), 
+   by = Species][order(-Species)]
+```
+
+
+
+## 2.2 Subset of Data
+
+But what if we had more than 100 columns
+
+### 2.2.1 `.SD`
+
+[S]ubset of [D]ata -- `.SD`, which is itself a data.table. By default, it holds the observations under all columns, except those under the specified column in `by` argument
+
+```{r}
+DT[, lapply(.SD, median), by = Species]
+```
+
+note: `.(...)` is an alias to `list()`
+
+`lapply()` applies the median() to all column in the first argument and returns a list
+
+(the code chunk below is a list)
+
+```{r}
+.(Sepal.Length = median(Sepal.Length), 
+       Sepal.Width = median(Sepal.Width), 
+       Petal.Length = median(Petal.Length),
+       Petal.Width = median(Petal.Width))
+```
+
+The `data.table` package provides a special built-in variable `.SD`. It refers to the subset of data for each unique value of the `by` argument. That is, the number of observations in the final output will be equal to the number of unique values in `by`.
+
+For example, suppose we had a data.table storing information about dogs:
+
+| Sex  | Weight | Age  | Height |
+| ---- | ------ | ---- | ------ |
+| M    | 40     | 1    | 12     |
+| F    | 30     | 4    | 7      |
+| F    | 80     | 12   | 9      |
+| M    | 90     | 3    | 14     |
+| M    | 40     | 6    | 12     |
+
+We could then use
+
+```{r}
+dogs[, lapply(.SD, mean), by = Sex]
+```
+
+to produce average weights, ages, and heights for male and female dogs separately:
+
+```{r}
+   Sex   Weight      Age   Height
+1:   M 56.66667 3.333333 12.66667
+2:   F 55.00000 8.000000  8.00000
+```
+
+### 2.2.2 `.SDcols` -- another arg of `DT[]`, overwrites the cols in `.SD`
+
+DEF: `.SDcols` overwrites the columns of `DT` that are included in `.SD`. Using `.SDcols` comes in handy if you have too many columns and you want to perform a particular operation on a subset of the columns (apart from the grouping variable columns).
+
+Using `.SDcols` allows you to apply a function to all rows of a data.table, but only to some of the columns. For example, consider the dog example above. If you only wanted to compute the average weight and age (the second and third columns) for all dogs, you could assign `.SDcols`accordingly:
+
+```{r}
+> dogs[, lapply(.SD, mean), .SDcols = 2:3]
+>    Weight Age
+  1:     56 5.2
+```
+
+While learning the `data.table` package, you may want to occasionally refer to the documentation. Have a look at `?data.table` for more info on `.SDcols`.
+
+
+
+
+
+### EXERCISE 3 
+
+The `data.table` package provides a special built-in variable `.SD`. It refers to the subset of data for each unique value of the `by` argument. That is, the number of observations in the final output will be equal to the number of unique values in `by`.
+
+For example, suppose we had a data.table storing information about dogs:
+
+| Sex  | Weight | Age  | Height |
+| ---- | ------ | ---- | ------ |
+| M    | 40     | 1    | 12     |
+| F    | 30     | 4    | 7      |
+| F    | 80     | 12   | 9      |
+| M    | 90     | 3    | 14     |
+| M    | 40     | 6    | 12     |
+
+We could then use
+
+```{r}
+dogs[, lapply(.SD, mean), by = Sex]
+```
+
+to produce average weights, ages, and heights for male and female dogs separately:
+
+```{r}
+   Sex   Weight      Age   Height
+1:   M 56.66667 3.333333 12.66667
+2:   F 55.00000 8.000000  8.00000
+```
+
+**Instructions**
+
+- Get the mean of columns `y` and `z` grouped by `x` by using `.SD`.
+- Get the median of columns `y` and `z` grouped by `x` by using `.SD`.
+
+```{r}
+# Mean of columns
+DT[, lapply(.SD, mean), by = x]
+
+# Median of columns
+DT[, lapply(.SD, median), by = x]
+```
+
+### EXERCISE 4 .SDcols
+
+**Instructions**
+
+- Calculate the sum of the columns that start with `Q`, using `.SD` and `.SDcols`. Set `.SDcols`equal to `2:4`.
+- Set `.SDcols` to be the result of a function call. This time, calculate the sum of columns `H1` and `H2` using `paste0()` to specify the `.SDcols` argument.
+- Finally, select all but the first row of the groups names 6 and 8, returning only the `grp` column and the columns that start with `Q`. Use -1 in `i` of `.SD` and use `paste0()` again. Type `desired_result` into the console to see what your answer should look like.
+
+#### paste0() Concatenate Strings
+
+**Description**
+
+Concatenate vectors after converting to character. 向量转换成字符并连接
+
+**Usage**
+
+```
+paste (..., sep = " ", collapse = NULL)
+paste0(..., collapse = NULL)
+```
+
+**Arguments**
+
+| `...`      | 一个或多个R对象，转出字符串向量. |
+| ---------- | -------------------------------- |
+| `sep`      | 分割组的字符串                   |
+| `collapse` | 可选的字符串分割结果串           |
+
+**Example**
+
+```{r}
+ paste(1:12, c("st", "nd", "rd", rep("th", 9)))
+ [1] "1 st"  "2 nd"  "3 rd"  "4 th"  "5 th"  "6 th"  "7 th"  "8 th"  "9 th"  "10 th" "11 th" "12 th"
+```
+
+```{r}
+> paste(1:12, c("st", "nd", "rd", rep("th", 9)),sep = "",collapse = ",")
+[1] "1st,2nd,3rd,4th,5th,6th,7th,8th,9th,10th,11th,12th"
+```
+
+
+
+Ans
+
+```{r}
+# Calculate the sum of the Q columns
+DT[, lapply(.SD, sum), .SDcols = 2:4]
+
+# Calculate the sum of columns H1 and H2 
+DT[, lapply(.SD, sum), .SDcols = c(paste0("H", 1:2))]
+
+# Select all but the first row of groups 1 and 2, returning only the grp column and the Q columns
+DT[, 
+  .SD[-1], 
+  by = grp,
+  .SDcols = c(paste0("Q", 1:3))]
+```
+
+### EXERCISE 5 Mixing it together: lapply, .SD, .SDcols and .N
+
+1. It's important to remember that whenever the `j` argument is a list (e.g. if it contains `.SD` or a call to `lapply()`), a data.table is returned. For example:
+
+```
+dogs[, lapply(.SD, mean), by = sex, .SDcols = c("weight", "age")]
+```
+
+​       will return a data.table containing average weights and ages for dogs of each sex.
+
+2. It's also helpful to know that **combining a list with a vector results in a new longer list.** 
+
+3. Lastly, note that when you select `.N` on its own, it is renamed `N` in the output for convenience when **chaining**.
+
+**Instructions**
+
+For this exercise, `DT`, which contains variables `x`, `y`, and `z`, is loaded in your workspace. You must combine `lapply()`, `.SD`, `.SDcols`, and `.N` to get your call to return a specific output. Good luck!
+
+- Get the sum of all columns `x`, `y` and `z`and the number of rows in each group while grouping by `x`. Your answer should be identical to this:
+
+  ```
+     x x  y  z N
+  1: 2 8 26 30 4
+  2: 1 3 23 26 3
+  ```
+
+- Get the cumulative sum of column `x` and `y` while grouping by `x` and `z > 8` such that the answer looks like this:
+
+  ```
+     by1   by2 x  y
+  1:   2 FALSE 2  1
+  2:   2 FALSE 4  6
+  3:   1 FALSE 1  3
+  4:   1 FALSE 2 10
+  5:   2  TRUE 2  9
+  6:   2  TRUE 4 20
+  7:   1  TRUE 1 13
+  ```
+
+
+
+Ans
+
+```{r}
+# Sum of all columns and the number of rows
+DT[, 
+  c(lapply(.SD, sum), N = .N), 
+  by = x, 
+  .SDcols = 1:3
+]
+
+# Cumulative sum of column x and y while grouping by x and z > 8
+DT[, 
+  lapply(.SD, cumsum), 
+  by = .(by1 = x, by2 = (z > 8)), # Renamed the column
+  .SDcols = 1:2
+]
+```
+
+**Takeaways**
+
+1. the input of i j by should always be a list type
+2. I can add a new elements or list 2 to list 1 by using vector syntax -- `c(list1, list2, element1)`
+3. I can **rename** the column name by using new_name = a column at anywhere among i j by as long as it is the place they are supposed to be in the query
+
+
+
+## 2.3 Add/remove/update columns using := in j
+
+**DEF: **`:=` is defined for use in `j` only, and is used to update data.tables by reference. One way of using `:=` is the `LHS := RHS` form, where LHS is a character vector of columns (referenced by name or number) you wish to update and RHS is the corresponding value for each column (Note: LHS stands for "left hand side" and RHS stands for "right hand side" in what follows).
+
+example
+
+```{r}
+DT <- data.table(x = c(1,1,1,2,2), y = 6:10 )
+```
+
+**1. Add and Update**
+
+```{r}
+DT[, c("x", "z") := .(rev(x), 10:6)]
+```
+
+`:=` updates the data.table by reference. the column x already exists, so it will be updated. column z does not exists, so it will be added by reference.
+
+LHS: 2 columns (left hand side)
+
+RHS: 2 values (right hand side)
+
+If you have only one column to update/add, you can ignore the `.()` and `c()` notation
+
+**2. Remove**
+
+we use `NULL` on the RHS. The operation remove the designated column instantly, however big they are.
+
+```{r}
+DT[, c("y", "z") := NULL]
+```
+
+Shortcut if one column
+
+```{r}
+DT[, y := NULL]
+```
+
+***3. But if your columns are in a vector. The operation below is the same for other situations on the LHS***
+
+```{r}
+MyCols = c("y", "z")
+# Put MyCols on the LHS, and add a pair of brackets
+DT[, (MyCols) := NULL]
+```
+
+So, for example, I can pass a `paste()`, and generate a vector of column names to delete on the fly without using a variable name at all.
+
+```{r}
+DT[, paste0("colNamePrefix:", 1:4) := NULL]
+```
+
+**4. Functional `:=`**
+
+Just a different way to layout multiple assignments on the page. So you can get values alongside the column name.
+
+```{r}
+DT[, `:=` (y = 6:10,   # y (kg)
+           z = 1)]
+
+`:=` () # operator
+```
+
+In the case above, we are assigning to 2 dif cols
+
+**5. `:=` combined with `i` and `by`**
+
+Here, we updates the subset of the rows
+
+```{R}
+DT[2:4, z := sum(y), by = x]
+```
+
+data.table manipulates data of 100G or 1T quickly
+
+
+
+**6. No need for <- to overwrite**
+
+When using the `:=` operator in `j`, do you need to assign the result to `DT`?
+
+
+
+### EXERCISE 6 Adding, updating and removing columns
+
+**Instructions**
+
+- Add a column to `DT` by reference, named `Total`, that contains `sum(B)` for each group in column `A`.
+- Add `1L` to the values in column `B`, but only in the rows 2 and 4.
+- Add a new column `Total2` that contains `sum(B)` grouped by `A` but just over rows 2, 3 and 4.
+- Remove the `Total` column from `DT`.
+- Use `[[` to select the third column as a vector. Simply print it out to the console.
+
+```{r}
+# The data.table DT
+DT <- data.table(A = letters[c(1, 1, 1, 2, 2)], B = 1:5)
+
+# Add column by reference: Total
+DT[, Total := sum(B), by = A]
+
+# Add 1 to column B
+DT[c(2, 4), B := B + 1L]
+
+# Add a new column Total2
+DT[2:4, Total2 := sum(B), by = A]
+
+# Remove the Total column
+DT[, Total := NULL]
+
+# Select the third column using `[[`
+DT[[3]]
+```
+
+Note that for the second instruction in `j` the performance goes up if you coerce RHS to integer yourself via `1L` or via `as.integer()`.
+
+```{r}
+> # The data.table DT
+> DT <- data.table(A = letters[c(1, 1, 1, 2, 2)], B = 1:5)
+> 
+> # Add column by reference: Total
+> DT[, Total := sum(B), by = A]
+   A B Total
+1: a 1     6
+2: a 2     6
+3: a 3     6
+4: b 4     9
+5: b 5     9
+> 
+> # Add 1 to column B
+> DT[c(2, 4), B := B + 1L]
+   A B Total
+1: a 1     6
+2: a 3     6
+3: a 3     6
+4: b 5     9
+5: b 5     9
+> 
+> # Add a new column Total2
+> DT[2:4, Total2 := sum(B), by = A]
+   A B Total Total2
+1: a 1     6     NA
+2: a 3     6      6
+3: a 3     6      6
+4: b 5     9      5
+5: b 5     9     NA
+> 
+> # Remove the Total column
+> DT[, Total := NULL]
+   A B Total2
+1: a 1     NA
+2: a 3      6
+3: a 3      6
+4: b 5      5
+5: b 5     NA
+> 
+> # Select the third column using `[[`
+> DT[[3]]
+[1] NA  6  6  5 NA
+```
+
+
+
+### EXERCISE 7 Try deleting a column only for a subset of rows
+
+Try deleting a column only for a subset of rows: `DT[2, B := NULL]`. Did this work?
+
+```{r}
+> DT[2, B := NULL]
+Error: When deleting columns, i should not be provided
+```
+
+A column is either there or it's not. It makes no sense to partially delete it. **If you find yourself needing to do this, then consider using `NA`s instead.** Rather than silently ignoring the mistaken use of `i`, `data.table` throws a syntax error straight away so you can fix it.
+
+
+
+### EXERCISE 8 The functional form
+
+It is important to note that in the generic functional form above, `my_fun()` can refer to any function, including the basic arithmetic functions. 
+
+- Update `B` with `B + 1`, add a new column `C` with `A + B`, and add a new column `D` of just `2`'s.
+- A variable `my_cols` has already been defined. Use it to delete these columns from `DT`.
+- **Important:** Finally, delete column `D` using the column number (`2`), not its name (`D`). 
+
+```{R}
+# A data.table DT has been created for you
+DT <- data.table(A = c(1, 1, 1, 2, 2), B = 1:5)
+
+# Update B, add C and D
+DT[, `:=` (B = B + 1L,
+          C = A + B,
+          D = 2)]
+
+# Delete my_cols
+my_cols <- c("B", "C")
+DT[, (my_cols) := NULL]
+
+# Delete column 2 by number
+DT[, (2) := NULL]
+```
+
+
+
+## 2.4 `set()`, `setnames()`, `setcolorder()`
+
+**`set()`**
+
+`set(DT, index, column, value)`
+
+The function takes four arguments:
+
+- A data.table with the columns you wish to update
+- The index used in a loop (e.g. the `i` in `for(i in 1:5)`)
+- The column or columns you wish to update in the loop
+- How the column or columns should be updated
+
+Suppose you have a data.table, and you'd like to repeatedly update the rows and columns by reference, you might be tempted to use a for loop
+
+```{r}
+for (i in 1:5) DT[i, z = i + 1L]
+```
+
+But a better version is to use `set()`, set() is a loopable, low overhead version of `:=` to operator, except that you cannot handle group operations
+
+```{r}
+for (i in 1:5) set(DT, i, 3L, i + 1)
+# For each value of i, we update DT on the 3rd column, which is given by the 3rd arg of set(), with the value i + 1  
+```
+
+![1](C:\R\4_Data Analysis in R, the data.table Way\1.JPG)
+
+
+
+**`setnames()`**
+
+used to set or modify the col names of a data.table by a reference
+
+`setnames(DT, "old", "new")`
+
+```{r}
+DT <- data.table(x = 1:5, y = a:e)
+
+setnames(DT, "y", "z")
+```
+
+
+
+**`setcolorder()`**
+
+set the cols in order by reference
+
+```{r}
+DT <- data.table(x = 1:5, y = a:e)
+
+# change the order of cols
+setcolorder(DT, c("y", "x"))
+```
+
+### EXERCISE 9 set family 1
+
+- A data.table `DT` has been created for you in the workspace. Check it out!
+- Loop through columns 2, 3, and 4, and for each one, select 3 rows at random and set the value of that column to `NA`.
+- Change the column names to lower case using the `tolower()` function. When `setnames()` is passed a single input vector, that vector needs to contain all the new names.
+- Print the resulting `DT` to the console to see what changed.
+
+```{r}
+# Set the seed
+set.seed(1)
+
+# Check the DT that is made available to you
+DT
+
+# For loop with set
+for (i in 2:4) set(DT, sample(1:10, 3), i, NA)
+
+# Change the column names to lowercase
+setnames(DT, (LETTERS[1:4]), (letters[1:4]))
+
+# Print the resulting DT to the console
+DT
+```
+
+
+
+### EXERCISE 10 set family 2
+
+- First, add a suffix `"_2"` to all column names of `DT`. Use `paste0()`here.
+- Next, use `setnames()` to change `a_2` to `A2`.
+- Lastly, reverse the order of the columns with `setcolorder()`.
+- (Self prompted) use the column number to refer to a column
+
+```{r}
+# Define DT
+DT <- data.table(a = letters[c(1, 1, 1, 2, 2)], b = 1)
+
+# Add a suffix "_2" to all column names
+setnames(DT, names(DT), paste0(names(DT),"_2")) 
+
+# Change column name "a_2" to "A2"
+for (i in 1) setnames(DT, (i), paste0(LETTERS[i],"2"))
+
+# Reverse the order of the columns
+setcolorder(DT, c("b_2", "A2"))
+```
+
+
+
+# 3. 
+
+## 3.1 Indexing
+
+**Select rows**
+
+using column names in the i arg
+
+```{r}
+# used as an example
+DT <- data.table(A = c:a, y = 1:6)
+```
+
+pass this logical subset into i, so we can select rows
+
+```{r}
+DT[A == "a"]
+```
+
+similarly
+
+```{r}
+DT[A %in% c("a", "c")]
+```
+
+What the operation are doing is to iterate over each item of the column one by one, and test to see if the value in the column is equal to the RHS/is in the list of RHS. All in all, it goes through each item and returns a logical vector
+
+**Conceptually subdivide the process, not actually what happens**
+
+```{r}
+w <- DT[, A == "a"]
+
+# we put the vectpr w back into i to subset the rows
+DT[w]
+```
+
+Actually, those code create an index automatically (by default) on A **the first time** you use column A, and adds that as an attribute. So the next time you refer to it, the operations finishes much faster.
+
+This feature is favorable because in a database you usually needs an admin account to index the data, in data.table it handles it automatically.
+
+```{r}
+DT[A == "b"] # Second time much faster
+```
+
+
+
+### EXERCISE 1
+
+- Convert the `iris` dataset to a data.table and store the result as `iris`.
+- Select all the rows where `Species` is `"virginica"`.
+- Select all the rows where `Species` is either `"virginica"` or `"versicolor"`.
+
+```{r}
+# Convert iris to a data.table
+iris <- data.table(iris)
+
+# Species is "virginica"
+iris[Species == "virginica"]
+
+# Species is either "virginica" or "versicolor"
+iris[Species %in% c("virginica", "versicolor")]
+```
+
+
+
+### EXERCISE 2 Removing columns and adapting your column names
+
+Now you have to take your understanding of the `data.table` package to the next level by using **standard R functions** and **regular expressions** to remove columns and change column names.
+
+Since regular expressions can be tricky, here is a quick refresher:
+
+- *Metacharacters* allow you to match certain types of characters. For example, `.` means any single character, `^` means "begins with", and `$` means "ends with".
+- If you want to use any of the metacharacters as actual text, you need to use the `\\` escape sequence.
+
+## Regular Expression in R
+
+**`gsub()`**
+
+`gsub()` function replaces all matches of a string, if the parameter is a string vector, returns a string vector of the same length and with the same attributes (after possible coercion to character). Elements of string vectors which are not substituted will be returned unchanged (including any declared encoding). 
+
+```
+gsub(pattern, replacement, x, ignore.case = FALSE, perl = FALSE,
+    fixed = FALSE, useBytes = FALSE)
+```
+
+• pattern: string to be matched
+
+• replacement: string for replacement
+
+• x: string or string vector
+
+• ignore.case: if TRUE, ignore case
+
+...
+
+```
+> x <- "R Tutorial"
+> gsub("ut","ot",x)
+[1] "R Totorial"
+```
+
+Case insensitive replace:
+
+```
+> gsub("tut","ot",x,ignore.case=T))
+[1] "R otorial"
+```
+
+If ignore.case is not set to True, no replace take place:
+
+```
+> gsub("tut","ot",x)
+[1] "R Tutorial"
+> x <- "line 4322: He is now 25 years old, and weights 130lbs"
+> y <- gsub("\\d+","---",x)
+> y
+[1] "line ---: He is now --- years old, and weights ---lbs"
+> x <- "line 4322: He is now 25 years old, and weights 130lbs"
+> y <- gsub("[[:lower:]]","-",x)
+> y
+[1] "---- 4322: H- -- --- 25 ----- ---, --- ------- 130---"
+```
+
+Vector replacement:
+
+```
+> x <- c("R Tutorial","PHP Tutorial", "HTML Tutorial")
+> gsub("Tutorial","Examples",x)
+[1] "R Examples"    "PHP Examples"  "HTML Examples"
+```
+
+**Regular Expression**
+
+##### Usage
+
+```{r}
+# Returns the index of successfully matched elements
+grep(pattern, x, ignore.case = FALSE, perl = FALSE, value = FALSE, fixed = FALSE, useBytes = FALSE, invert = FALSE)
+
+grepl(pattern, x, ignore.case = FALSE, perl = FALSE, fixed = FALSE, useBytes = FALSE)
+
+sub(pattern, replacement, x, ignore.case = FALSE, perl = FALSE, fixed = FALSE, useBytes = FALSE)
+
+gsub(pattern, replacement, x, ignore.case = FALSE, perl = FALSE, fixed = FALSE, useBytes = FALSE)
+
+regexpr(pattern, text, ignore.case = FALSE, perl = FALSE, fixed = FALSE, useBytes = FALSE)
+
+gregexpr(pattern, text, ignore.case = FALSE, perl = FALSE, fixed = FALSE, useBytes = FALSE)
+
+regexec(pattern, text, ignore.case = FALSE, perl = FALSE, fixed = FALSE, useBytes = FALSE)
+```
+
+##### Arguments
+
+- pattern
+
+  character string containing a [regular expression](https://www.rdocumentation.org/link/regular%20expression?package=base&version=3.5.2) (or character string for `fixed = TRUE`) to be matched in the given character vector. Coerced by`as.character` to a character string if possible. If a character vector of length 2 or more is supplied, the first element is used with a warning. Missing values are allowed except for `regexpr` and `gregexpr`.
+
+- x, text
+
+  a character vector where matches are sought, or an object which can be coerced by `as.character` to a character vector. [Long vectors](https://www.rdocumentation.org/link/Long%20vectors?package=base&version=3.5.2) are supported.
+
+- ignore.case
+
+  if `FALSE`, the pattern matching is *case sensitive* and if `TRUE`, case is ignored during matching.
+
+- perl
+
+  logical. Should Perl-compatible regexps be used?
+
+- value
+
+  if `FALSE`, a vector containing the (`integer`) indices of the matches determined by `grep` is returned, and if `TRUE`, a vector containing the matching elements themselves is returned.
+
+- fixed
+
+  logical. If `TRUE`, `pattern` is a string to be matched as is. Overrides all conflicting arguments.
+
+- useBytes
+
+  logical. If `TRUE` the matching is done byte-by-byte rather than character-by-character. See ‘Details’.
+
+- invert
+
+  logical. If `TRUE` return indices or values for elements that do *not* match.
+
+- replacement
+
+  a replacement for matched pattern in `sub` and `gsub`. Coerced to character if possible. For `fixed = FALSE` this can include backreferences `"\1"` to`"\9"` to parenthesized subexpressions of `pattern`. For `perl = TRUE` only, it can also contain `"\U"` or `"\L"` to convert the rest of the replacement to upper or lower case and `"\E"` to end case conversion. If a character vector of length 2 or more is supplied, the first element is used with a warning. If `NA`, all elements in the result corresponding to matches will be set to `NA`.
+
+**Instructions**
+
+- Simplify the names of the columns in `iris` that contain `"Sepal."` by removing the `"Sepal."` prefix. Use `gsub()` along with the appropriate regular expression inside a call to `setnames()`.
+- Make use of `grep()` in combination with `names()` to remove the `Petal`-related columns. Remove the two columns that start with `"Petal"` from the `iris`data.table.
+
+```{r}
+# Remove the "Sepal." prefix
+setnames(iris, gsub("Sepal.", "", names(iris)))
+
+# Remove the two columns starting with "Petal"
+iris[, (grep("^Petal", names(iris))) := NULL]
+```
+
+
+
+### EXERCISE 3 Automatic indexing
+
+You've been introduced to the rule that "if `i` is a single variable name, it is evaluated in the calling scope, otherwise inside DT's scope". This is a very important rule if you want to conceptually understand what is going on when using column names in `i`. Only single columns on the left side of operators benefit from automatic indexing.
+
+**Instructions**
+
+- Select the rows where the area is greater than 20 square centimeters.
+- Add a new boolean column containing `Width * Length > 25` and call it `is_large`. Remember that `:=` can be used to create new columns.
+- Select the rows for which the value of `is_large` is `TRUE`.
+
+```{r}
+# Area is greater than 20 square centimeters
+iris[ Length * Width > 20]
+
+# Add new boolean column
+iris[, is_large := (Width * Length > 25)]
+
+# Now large observations with is_large
+iris[(is_large)]
+```
+
+
+
+## 3.2 Key
+
+Sometimes it is more convenient to set a key in a data.table
+
+example
+
+```{r}
+# used as an example
+DT <- data.table(A = c:a, B = 1:6)
+```
+
+```{r}
+setkey(DT, A)
+```
+
+`setkey()` sorts the data by the column we specify and change the data.table by reference. Note that here we do not the assign the result back to the data.table DT, this is because we are doing the operation by reference
+
+Think of key as super-charged row names. In this case, we have set the key to the character column A, can we use it as the row name in data.table? Yes! But not in data.frame
+
+```{r}
+DT["b"]
+
+DF["b"]
+```
+
+
+
+Arguments like `mult` and `nomatch` then help you to select only particular parts of groups.
+
+**`mult`**
+
+by default, DT["b"] returns all the rows that match, we can subset the result by using `mult` arg
+
+```{r}
+# just return only the first row 
+DT["b", mult = "first"]
+
+# only the last
+DT["b", mult = "last"]
+```
+
+**2 values and `nomatch`**
+
+```{r}
+DT[c("b", "d"), nomatch = NA] # default
+```
+
+"b" is found and those 2 rows are returned, by "d" is not
+
+we can handle the situation by using the arg nomatch
+
+```
+# When nomatch = 0, only matched rows will be returned 
+DT[c("b", "d"), nomatch = 0]
+```
+
+
+
+**A two-column key**
+
+Example
+
+```{r}
+# used as an example
+DT <- data.table(A = c:a, B = c(4, 1, 6, 3, 5, 2), C = 1:6)
+```
+
+```{r}
+setkey(DT, A, B)
+```
+
+note that column B is sorted within each group of A
+
+We need to use `.()` in `i` to look up each column of the key. 
+
+`.(First, Second)`
+
+- First: possible value(s) of A
+- Second: possible value(s) of B whthin the group A[first]
+
+```{r}
+DT[.("b", 5)]
+```
+
+changing 5 to 6 returns NA
+
+```{r}
+DT[.("b", 6)]
+>  A B C
+1: b 6 NA
+```
+
+we can also just look up the First column of the key
+
+```{r}
+DT[.("b")]
+```
+
+### EXERCISE 4 Selecting groups or parts of groups [Important]
+
+Two of the instructions will require you to make use of `by = .EACHI`. This allows you to run `j` for each group, which is formed by the data.table in the `i` arg. 
+
+For example:
+
+```{r}
+DT <- data.table(A = letters[c(2, 1, 2, 3, 1, 2, 3)], 
+                 B = c(5, 4, 1, 9, 8, 8, 6), 
+                 C = 6:12)
+setkey(DT, A, B)
+
+# the code below seperate the selected into 2 groups defined in c("b", "c") of the first key column--A
+DT[c("b","c"), .SD, by = .EACHI]
+
+```
+
+```{r}
+   A B  C
+1: b 1  8
+2: b 5  6
+3: b 8 11
+4: c 6 12
+5: c 9  9
+```
+
+
+
+The last instruction will require you to produce a side effect inside the `j` argument in addition to selecting rows.
+
+**Instructions**
+
+- Select the `"b"` group without using `==`.
+- Select the `"b"` and `"c"` groups, again without using `==`.
+- Select the first row of the `"b"` and `"c"` groups using `mult`.
+- Use `by = .EACHI` and `.SD` to select the first and last row of the `"b"`and `"c"` groups. Copy and extend the code for the third instruction with `.SD[c(___, ___)]` and `by = ___`.
+- Extend the previous command to print out the group before returning the first and last row from it. You can use `{insturction1; instruction2; ...}` to include two separate instructions inside the `j` argument.
+
+```{r}
+# The 'keyed' data.table DT
+DT <- data.table(A = letters[c(2, 1, 2, 3, 1, 2, 3)], 
+                 B = c(5, 4, 1, 9, 8, 8, 6), 
+                 C = 6:12)
+setkey(DT, A, B)
+
+# Select the "b" group
+DT[.("b")]
+
+# "b" and "c" groups
+DT[c("b","c" )]
+
+# The first row of the "b" and "c" groups
+DT[c("b", "c" ), mult = "first"]
+
+# First and last row of the "b" and "c" groups
+DT[c("b", "c"), .SD[c(1, .N)], by = .EACHI]
+
+# Copy and extend code for instruction 4: add printout
+DT[c("b", "c"), {print(.SD); .SD[c(1, .N)]}, by = .EACHI]
+```
+
+
+
+## 3.3 Rolling joins
+
+Accurate join: we use keys to search for the rows that match exactly
+
+This section is about rolling joins, with a value we are looking forms and a gap in the ordered series of key
+
+In this most cases, these are time series where the starts and the an ended time for each group is different, but it is useful in other situations and algorithms where ordered data and ordered keys occur and there is gap and you want to decide what is going to happen on these gaps
+
+### 3.31 Ordered joins
+
+- Default situation
+
+```{r}
+setkey(DT, A, B)
+
+# Let's join to it as we did in the last section
+DT[.("b", 4)]
+
+# Think about the reason of returning NA in column C
+>  A B C
+1: b 4 NA
+# Because we don't have group (b, 4)
+```
+
+- Let's set the `roll` arg to TRUE, that sets roll the prevailing observation before gap **forwards** 
+
+```{r}
+DT[.("b", 4), roll = TRUE]
+```
+
+- Set the roll arg to "nearest", and that look afore, compares the 5 to 1 in column B, and see which one is closest to
+
+```{r}
+DT[.("b", 4), roll = "nearest"]
+```
+
+![2](C:\R\4_Data Analysis in R, the data.table Way\2.JPG)
+
+- Always roll forwards or backwards
+
+```{r}
+# Always roll forward
+DT[.("b", 4), roll = +Inf]
+# or always backwards
+DT[.("b", 4), roll = -Inf]
+```
+
+
+
+- Limited staleness
+
+Time series is to limit the staleness (过时性) of data. For example, there is a real time process or historical data, which is covering everyday, but then stopped for some reason, and perhaps for some groups much earlier than other groups. So we want to join to the prevailing observation, but only if that prevailing fulls within a window of the data that you are joining from
+
+For example, you want to limit to 30 days, and we simply do that by passing a number
+
+```{r}
+# last observation carried forward (LOCF)
+DT[.("b", 4), roll = 2]
+
+   A B C
+1: b 4 NA
+
+# next observation carried backward (NOCB)
+# we can also do that backwards
+DT[.("b", 4), roll = -2]
+
+   A B C
+1: b 4 5
+```
+
+
+
+- Control ends
+
+Finally, we can control what happens when the data we are joining from fuls after the ends of the sequence of data for this particular group
+
+We can set the `rollends` arg to FALSE, and stop the rolling forward happening if the data is after the end or before the beginning
+
+```{r}
+DT[.("b", 7:8), roll = TRUE]
+
+# the last observation of group b get cover the NA
+   A B C
+1: b 7 5
+2: b 8 5
+```
+
+But what if we set `rollends` to FALSE, that rolling doesn't happen and we get `NA`s
+
+```{r}
+DT[.("b", 7:8), roll = TRUE, rollends = FALSE]
+```
+
+
+
+### EXERCISE 5: Rolling joins 1
+
+- Get the key of `DT` through the `key()` function.
+- Use the super-charged row names to look up the row where `A == "b"` and `B == 6`, **without using ==**! Verify here that column `C` is `NA`.
+- Based on the query that was written in the previous instruction, return the prevailing row before this "gap". Specify the `roll` argument.
+- Again, start with the code from the second instruction, but this time, find the *nearest* row. Specify the `roll` argument accordingly.
+
+```{r}
+# Keyed data.table DT
+DT <- data.table(A = letters[c(2, 1, 2, 3, 1, 2, 3)], 
+                 B = c(5, 4, 1, 9, 8, 8, 6), 
+                 C = 6:12, 
+                 key = "A,B")
+
+# Get the key of DT
+key(DT)
+
+# Row where A == "b" and B == 6
+DT[.("b", 6)]
+
+# Return the prevailing row
+DT[.("b", 6), roll = TRUE]
+
+# Return the nearest row
+DT[.("b", 6), roll = "nearest"]
+```
+
+### EXERCISE 6: Rolling joins 2
+
+The `rollends` argument is actually a vector of two logical values, but remember that you can always look this up via `?data.table`. You were introduced to this argument via the control ends section. If you want to roll for a certain distance, you should continue to use the `roll` argument.
+
+- For the group where column `A` is equal to `"b"`, print out the sequence when column `B` is set equal to `(-2):10`. Remember, `A` and `B` are the keys for this data.table.
+- Extend the code you wrote for the first instruction to roll the prevailing values forward to replace the `NA`s.
+- Extend your code with the appropriate `rollends` value to roll the first observation backwards.
+
+```{r}
+?data.table
+
+# Keyed data.table DT
+DT <- data.table(A = letters[c(2, 1, 2, 3, 1, 2, 3)], 
+                 B = c(5, 4, 1, 9, 8, 8, 6), 
+                 C = 6:12, 
+                 key = "A,B")
+
+# Print the sequence (-2):10 for the "b" group
+DT[.("b", (-2):10)]
+
+# Add code: carry the prevailing values forwards
+DT[.("b", (-2):10), roll = + Inf]
+
+# Add code: carry the first observation backwards
+DT[.("b", (-2):10), roll = + Inf, rollends = TRUE]
+```
+

@@ -1,0 +1,2036 @@
+---
+title: "Join_data_in_R_with_dplyr"
+author: "Sherwin"
+date: "2019年2月11日"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r cars}
+summary(cars)
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+
+
+
+# 1. Mutating joins
+
+A single tidy table fasten your analysis, than multiple tables do. However, most real-world data comes with multiple tables.
+
+This chap tell you how to join tables
+
+`Join()` is not the only way to join data, there is the other function called `merge()`.
+
+**Benefits of dplyr join functions**
+
+- Always preserve row orders, not Ture for `merge()`
+- Intuitive syntax
+- Can be applier to database, spark, etc. -- great way to manipulate big data in R
+
+## 1.1 Keys
+
+The job of `join()` is to find their match and display them in the same row in the final data table. My job is to give `join()` the information to do the task.
+
+**Def: A key** is a column or combination of columns that occurs in each table that you want to join, dplyr completes the join by matching rows have the same values of the key.
+
+Primary key 主键: This distinction is important because the key has a special job in the primary table, the primary key should **uniquely identified** each row in the first dataset, if it doesn't, the result becomes hard to understand. 
+
+Foreign key: In contrast, the foreign key only correspond to the primary key. It is acceptable for foreign key to be duplicated or missing 
+
+### EXERCISE1: Primary keys
+
+```{r}
+artists
+```
+
+
+
+## 1.2 Joins
+
+Altogether, dplyr has 6 join functions, which uses same arg as does `left_join()`, but returns dif result
+
+`*_join(x, y)` joins `y` **to** `x`. The second dataset you specify is joined to the first dataset.
+
+### 1.2.1 Mutating joins:`left_joins()`
+
+Used to augment the information of the primary table
+
+```{r}
+left_join(names, plays, by = "name")
+
+# Multi-column key
+left_join(names2, plays2, by = c("name", "surname"))
+          # passed by a character vetor that includes all of the column names in the key
+```
+
+**Args**
+
+- table to augment
+- table to augment with
+- key column name(s) a character string
+
+Appended to the primary table will be news values and columns matched from the second data frame. If it does not match, dplyr will supply and `NA` in the appropriate place. If a row in the second dataset does not have a match, dplyr will ignore it entirely, it won't appear in the data frame. 
+
+### 1.2.2 Mutating joins:`right_join()`
+
+opposite of `left_join()`, treats the right dataset as the primary dataset.
+
+![1](C:\R\joining-data-in-r-with-dplyr\1.JPG)
+
+### 1.2.3 dplyr connection object
+
+**Def:** a dplyr object that references a table stored outside of R
+
+### EXERCISE 2: left join and right join
+
+```{r}
+# Complete the code to join artists to bands
+bands2 <- left_join(bands, artists, by = c("first", "last"))
+
+# Finish the code below to recreate bands3 with a right join
+bands2 <- left_join(bands, artists, by = c("first", "last"))
+bands3 <- right_join(artists, bands, by = c("first", "last"))
+
+# Use setequal() to check that the datasets are the same.
+setequal(bands2, bands3)
+```
+
+
+
+Both left join and right join are half of a class of joins called mutating joins. The mutating joins differ from each other with respect to which values and rows they return in the final result.
+
+
+
+### 1.2.4 `inner_join()`
+
+**Only returns the rows that have a match in the second dataset. Most exclusive**
+
+![2](C:\R\joining-data-in-r-with-dplyr\2.JPG)
+
+### 1.2.5 `full_join()`
+
+**Does the opposite of `inner_join()`, it returns every row in either dataset, most inclusively.** It retains all information in the original datasets.
+
+![3](C:\R\joining-data-in-r-with-dplyr\3.JPG)
+
+
+
+
+
+### EXERCISE 3: Inner joins and full joins
+
+**Scenario**
+
+You may have noticed that some of the songs in `songs` correspond to some of the albums in `albums`. Suppose you want a new dataset that contains all of the songs for which you have data from both `albums` and `songs`. How would you make it?
+
+The `artists` and `bands` datasets also share some information. What if you want to join these two datasets in such a way that you retain all of the information available in both tables, without throwing anything away?
+
+**Instructions**
+
+- Join `albums` to `songs` in a way that returns only rows that contain information about both songs and albums.
+- Join `bands` to `artists` to create a single table that contains *all* of the available data.
+
+```{r}
+# Join albums to songs using inner_join()
+inner_join(songs, albums, by = "album")
+
+# Join bands to artists using full_join()
+full_join(artists, bands, by = c("first", "last"))
+```
+
+
+
+### **1.3 Implementing joins with pipe operator `%>%` **
+
+because `%>%` makes the code easier to understand.
+
+for example, the two pieces of code below do the same thing:
+
+```{r}
+full_join(artists, bands, 
+          by = c("first", "last"))
+
+artists %>% 
+  full_join(bands, by = c("first", "last"))
+```
+
+### EXERCISE 4: pipes
+
+**Instructions 1**
+
+The code in the editor finds all of the known guitarists in the `bands` dataset. Rewrite the code to use `%>%`s instead of multiple function calls. The pipe `%>%` should be used three times and `temp` zero times.
+
+```{r}
+# Find guitarists in bands dataset (don't change)
+temp <- left_join(bands, artists, by = c("first", "last"))
+temp <- filter(temp, instrument == "Guitar")
+select(temp, first, last, band)
+
+# Reproduce code above using pipes
+bands %>% 
+  left_join(artists, by = c("first", "last")) %>% 
+  filter(instrument == "Guitar") %>%
+  select(first, last, band)
+```
+
+**Instructions 2**
+
+Your mission, if you choose to accept it, is to create a dataset that's identical to `goal` using only `inner_join()` and `full_join()`.
+
+- Examine the `goal` dataset by printing it to the console.
+- Write a pipe that uses a full join and an inner join to combine `artists`, `bands`, and `songs`into `goal2`, a dataset identical to `goal`.
+- Use `setequal()` to check that `goal` is identical to `goal2`.
+
+```{r}
+> artists
+# A tibble: 16 x 3
+   first  last      instrument
+   <chr>  <chr>     <chr>     
+ 1 Jimmy  Buffett   Guitar    
+ 2 George Harrison  Guitar    
+ 3 Mick   Jagger    Vocals    
+ 4 Tom    Jones     Vocals    
+ 5 Davy   Jones     Vocals    
+ 6 John   Lennon    Guitar    
+ 7 Paul   McCartney Bass      
+ 8 Jimmy  Page      Guitar    
+ 9 Joe    Perry     Guitar    
+10 Elvis  Presley   Vocals    
+11 Keith  Richards  Guitar    
+12 Paul   Simon     Guitar    
+13 Ringo  Starr     Drums     
+14 Joe    Walsh     Guitar    
+15 Brian  Wilson    Vocals    
+16 Nancy  Wilson    Vocals
+
+> songs
+# A tibble: 4 x 4
+  song             album                first  last     
+  <chr>            <chr>                <chr>  <chr>    
+1 Come Together    Abbey Road           John   Lennon   
+2 Dream On         Aerosmith            Steven Tyler    
+3 Hello, Goodbye   Magical Mystery Tour Paul   McCartney
+4 Its Not Unusual Along Came Jones     Tom    Jones
+
+> bands
+# A tibble: 13 x 3
+   first     last      band              
+   <chr>     <chr>     <chr>             
+ 1 John      Bonham    Led Zeppelin      
+ 2 John Paul Jones     Led Zeppelin      
+ 3 Jimmy     Page      Led Zeppelin      
+ 4 Robert    Plant     Led Zeppelin      
+ 5 George    Harrison  The Beatles       
+ 6 John      Lennon    The Beatles       
+ 7 Paul      McCartney The Beatles       
+ 8 Ringo     Starr     The Beatles       
+ 9 Jimmy     Buffett   The Coral Reefers 
+10 Mick      Jagger    The Rolling Stones
+11 Keith     Richards  The Rolling Stones
+12 Charlie   Watts     The Rolling Stones
+13 Ronnie    Wood      The Rolling Stones
+```
+
+code:
+
+```{r}
+# Examine the contents of the goal dataset
+goal
+
+# Create goal2 using full_join() and inner_join() 
+goal2 <- artists %>%
+    full_join(bands, by = c("first", "last")) %>%
+    inner_join(songs, by = c("first", "last"))
+  
+# Check that goal and goal2 are the same
+setequal(goal, goal2)
+```
+
+The result
+
+```{r}
+> goal
+# A tibble: 3 x 6
+  first last      instrument band        song             album               
+  <chr> <chr>     <chr>      <chr>       <chr>            <chr>               
+1 Tom   Jones     Vocals     <NA>        Its Not Unusual  Along Came Jones    
+2 John  Lennon    Guitar     The Beatles Come Together    Abbey Road          
+3 Paul  McCartney Bass       The Beatles Hello, Goodbye   Magical Mystery Tour
+```
+
+
+
+![4](C:\R\joining-data-in-r-with-dplyr\4.JPG)
+
+
+
+### EXERCISE 5
+
+**Instructions**
+
+Write a pipe that combines `artists`, `bands`, `songs`, and `albums` (in that order) into a single table, such that it contains *all* of the information in the datasets.
+
+```{r}
+# Create one table that combines all information
+# simply call full_join() three times
+c <- c("first", "last")
+artists %>% full_join(bands,by = c) %>%
+    full_join(songs,by = c) %>%
+    full_join(albums,by = c("band", "album"))
+```
+
+
+
+```{r}
+# A tibble: 29 x 7
+   first  last     instrument band            song         album            year
+   <chr>  <chr>    <chr>      <chr>           <chr>        <chr>           <int>
+ 1 Jimmy  Buffett  Guitar     The Coral Reef~ <NA>         <NA>               NA
+ 2 George Harrison Guitar     The Beatles     <NA>         <NA>               NA
+ 3 Mick   Jagger   Vocals     The Rolling St~ <NA>         <NA>               NA
+ 4 Tom    Jones    Vocals     <NA>            Its Not Un~  Along Came Jon~    NA
+ 5 Davy   Jones    Vocals     <NA>            <NA>         <NA>               NA
+ 6 John   Lennon   Guitar     The Beatles     Come Togeth~ Abbey Road       1969
+ 7 Paul   McCartn~ Bass       The Beatles     Hello, Good~ Magical Myster~  1967
+ 8 Jimmy  Page     Guitar     Led Zeppelin    <NA>         <NA>               NA
+ 9 Joe    Perry    Guitar     <NA>            <NA>         <NA>               NA
+10 Elvis  Presley  Vocals     <NA>            <NA>         <NA>               NA
+# ... with 19 more rows
+```
+
+
+
+# 2. Filtering joins and set operations
+
+To strategically extract rows from combination of datasets. Every row in the result must appear in both datasets. 
+
+In dplyr, I use `filter()` to to return a subset of rows from a data frame.
+
+```{r}
+pressure[1:4, ]
+# is the same as
+filter(pressure[1:4, ], temperature %in% c("20", "30", "50", "60"))
+```
+
+
+
+## 2.1 Filtering joins
+
+Like mutating joins, filtering joins take similar arguments, 2 df and by = column name(s). 
+
+- semi_join()
+- anti_join()
+
+### 2.1.1 semi_join()
+
+semi_join() returns a copy of the primary df that has been **filtered** not **augmented**
+
+```{r}
+semi_join(names, plays, by = "name")
+```
+
+If we apply semi_join() to names and plays datasets, we get a copy of name that has been filtered to just the rows that have a match in plays. **It does not add any new columns from the second dataset to this copy.
+
+Why use semi_join()? 
+
+- To quickly check which rows in one df have a match in another df, even before mutating join.
+- Useful for filtering on complex criteria. Quicker than filtering
+
+### EXERCISE 1: Comparing semi_join() with mutating join+filter()
+
+**Instructions**
+
+- Run the `semi_join()` command to see its output.
+- Then fill in the blanks of the `right_join()`, `filter()`, and `select()` calls to create the same result (but with the rows in a different order).
+
+```{r}
+# View the output of semi_join()
+artists %>% 
+  semi_join(songs, by = c("first", "last"))
+
+# Create the same result
+artists %>% 
+  right_join(songs, by = c("first", "last")) %>% 
+  filter(!is.na(instrument)) %>% 
+  select(first, last, instrument)
+```
+
+### EXERCISE 2: Exploring connections between multiple tables of data with semi-joins
+
+Semi-joins provide a useful way to explore the connections between multiple tables of data.
+
+For example, you can use a semi-join to determine the number of albums in the `albums` dataset that were made by a band in the `bands` dataset.
+
+**Instructions**
+
+- For the first pipe, use `semi_join()` to collect the albums in `albums` that were made by a band in `bands`.
+- For the second pipe, use [`nrow()`](https://www.rdocumentation.org/packages/base/topics/nrow) to count how many albums were made by a band in the dataset.
+
+```{r}
+albums %>% 
+  # Collect the albums made by a band
+  semi_join(bands, by = "band") %>% 
+  # Count the albums made by a band
+  nrow()
+```
+
+It return the same results, but look at how much more code the filter requires!
+
+```{r}
+tracks %>% semi_join(
+  matches,
+  by = c("band", "year", "first")
+)
+
+tracks %>% filter(
+  (band == "The Beatles" & 
+     year == 1964 & first == "Paul") |
+    (band == "The Beatles" & 
+       year == 1965 & first == "John") |
+    (band == "Simon and Garfunkel" & 
+       year == 1966 & first == "Paul")
+)
+```
+
+
+
+### 2.1.2 anti_join()
+
+The second filtering join, does the **opposite** of semi_join(), get a copy of `names` that has been filtered to just the rows that **DO NOT** have a match in `plays`
+
+```{r}
+anti_join(names, plays, by = "name")
+```
+
+use anti_join() 
+
+- to see which row do not have a match, 
+
+- to inspect misspellings in the key values, which can be a common join error
+
+`anti_join()` is the last join function provided by dplyr. All 7
+
+![5](C:\R\joining-data-in-r-with-dplyr\5.JPG)
+
+
+
+### EXERCISE 3: 
+
+```{r}
+# Return rows of artists that don't have bands info
+artists %>% 
+  anti_join(bands, by = c("first", "last"))
+```
+
+
+
+### EXERCISE 4: Diagnose capitalization and misspellings
+
+Anti-joins with `anti_join()` also provide a great way to diagnose joins that go wrong.
+
+For example, they can help you zero-in on rows that have capitalization or spelling errors in the keys. These things will make your primary and secondary keys appear different to R, even though you know they refer to the same thing.
+
+**Instructions**
+
+`labels` describes the record labels of the albums in `albums`. Compare the spellings of album names in `labels` with the names in `albums`. Are any of the album names of `labels` mis-entered? Use `anti_join()` to check. *Note: Don't forget to mention the by argument.*
+
+```{r}
+# Check whether album names in labels are mis-entered
+labels %>% 
+  anti_join(albums, by = "album")
+```
+
+
+
+### EXERCISE 5: Checking understanding
+
+**Instructions**
+
+- Determine which key joins `labels` and `songs`.
+- Use a filtering join to find the rows of `songs` that match a row in `labels`.
+- Use [`nrow()`](https://www.rdocumentation.org/packages/base/topics/nrow) to determine how many matches exist between labels and songs.
+
+```{R}
+# Determine which key joins labels and songs
+labels
+songs
+
+# Check your understanding
+songs %>% 
+  # Find the rows of songs that match a row in labels
+  semi_join(labels, by = "album") %>% 
+  # Number of matches between labels and songs
+  nrow()
+```
+
+
+
+## 2.2 Set operations -- another way to join datasets
+
+When 2 datasets contain exact the same variable, it can be helpful to combine them with set operation, things like union and intersection (甘特图). 
+
+- `union()`: 并集. If a row appear multiple times, union() only return once
+- `intersect()`: 交集, returns rows that only appear in both datasets
+- `setdiff()`: 补集, returns rows that appear in the 1st dataset but not 2nd dataset
+
+group data from 2 to 1 dataset. 
+
+```{r}
+union(names, more_names)
+intersect(names, more_names)
+setdiff(names, more_names)
+```
+
+
+
+### EXERCISE6: set operations
+
+There is no set operation to find rows that appear in one data frame or another, but not both. However, you can accomplish this by combining set operators, as Garrett showed in the video.
+
+Can you think of a combination that would answer the question, "Which songs appear on one of *Live! Bootleg* or *Greatest Hits*, but not both?"
+
+**A∪B - A∩B**
+
+You'll need `setdiff()`, `intersect()`, and `union()`, but not necessarily in that order.
+
+**Instructions**
+
+- From `live`, select the `song` column, and assign to `live_songs`.
+- From `greatest_hits`, again select the `song` column, this time assigning to `greatest_songs`.
+- Find the songs in `live_songs` or `greatest_songs` or both, assigning to `all_songs`.
+- Find the songs that are in both `live_songs` and `greatest_songs`, assigning to `common_songs`.
+- Find the songs that are in `live_songs` or `greatest_songs` *but not both*.
+
+```{r}
+# Select songs from live and greatest_hits
+live_songs <- live %>% select(song)
+greatest_songs <- greatest_hits %>% select(song)
+
+
+# Find songs in at least one of live_songs and greatest_songs
+all_songs <- union(live_songs, greatest_songs)
+
+# Find songs in both 
+common_songs <- intersect(live_songs, greatest_songs)
+
+# Find songs that only exist in one dataset
+setdiff(all_songs, common_songs)
+```
+
+
+
+## 2.3 Comparing datasets
+
+- `setequal()`: if the same? returns `T` or `F`. 
+- `identical()`have the same effect, but not advisable, because identical() is much less robust, only returns `T` when 2 sets have the same rows in the **exact same order**.
+
+# 3. Assembling data
+
+Best practices to compose dataframes in R, including the `bind_rows()`, `bind_columns()`, and `data_frame()`. And how to combine raw information into datasets.
+
+
+
+## 3.1 Binds
+
+**Binding datasets DEF:** If you have 2 datasets have same columns in same order, simply paste them together.
+
+Below are R's original functions:
+
+- `rbinds()`: bind rows with same columns in the same order
+
+- `cbinds()`: bind columns with same obs in the same order
+
+But it is advisable to use dplyr's  `bind_rows()` and `bind_cols()`
+
+Why?
+
+- slightly faster
+
+- returns tibble, an enhanced version of dataframe
+
+- Can handle lists of dataframes, their syntax is more flexible than rbind() and cbind()
+
+  e.g. jimi only contains 2 lists, pass into bind_rows() directly
+
+  ```{r}
+  jimi %>% 
+    # Bind jimi by rows, with ID column "album"
+    bind_rows(.id = "album")  %>%
+  ```
+
+- `rbind()` returns an error when column names do not match across data frames. `bind_rows()` creates a column for each unique column name and distributes missing values as appropriate.
+
+- `.id` arg, to add a new column to indicate which dataset does the row came from. To do this, pass the dataframe to bind_row() as named arguments, which will be used as the label in your data. Especially helpful when using `ggpolt2` to do grouping aesthetics for visualization
+
+  e.g. 
+
+  ```{r}
+  bind_rows(Beatles = band1, Stones = band2, .id = "bands")
+  ```
+
+  
+
+###  3.1.1 `bind_rows()`
+
+Also bind rows with same columns in the same order
+
+```{r}
+bind_rows(band1, band2)
+```
+
+with band2 added as additional rows below the band1
+
+### 3.1.2 `bind_cols()`
+
+Also bind columns with same obs in the same order
+
+```{r}
+bind_cols(band1, plays1)
+```
+
+These 2 binds are very lazy versions of joins, because it does not match rows and assumes that all are placed in the matching order. So **be very careful using the functions**. Binds rely on airtight handling
+
+
+
+### EXERCISE 1: Bind rows
+
+**Scenario**
+
+`discography` and `jimi` contain all of the information you need to create an anthology dataset for the band *The Jimi Hendrix Experience*.
+
+`discography` contains a data frame of each album by *The Jimi Hendrix Experience* and the year of the album.
+
+`jimi` contains a list of data frames of album tracks, one for each album released by *The Jimi Hendrix Experience*. As Garrett explained in the video, you can pass `bind_rows()` a list of data frames like `jimi` to bind together into a single data frame.
+
+**Pay attention to the format of jimi**
+
+```{r}
+> discography
+# A tibble: 3 x 2
+  album                year
+  <chr>               <int>
+1 Are You Experienced  1967
+2 Axis: Bold as Love   1967
+3 Electric Ladyland    1968
+> jimi
+$`Are You Experienced`
+# A tibble: 10 x 2
+   song                     length
+   <chr>                    <time>
+ 1 Purple Haze              02:46 
+ 2 Manic Depression         03:46 
+ 3 Hey Joe                  03:23 
+ 4 May This Be Love         03:14 
+ 5 I Dont Live Today       03:55 
+ 6 The Wind Cries Mary      03:21 
+ 7 Fire                     02:34 
+ 8 Third Stone from the Sun 06:40 
+ 9 Foxy Lady                03:15 
+10 Are You Experienced?     03:55 
+
+$`Axis: Bold As Love`
+# A tibble: 13 x 2
+   song                 length
+   <chr>                <time>
+ 1 EXP                  01:55 
+ 2 Up from the Skies    02:55 
+ 3 Spanish Castle Magic 03:00 
+ 4 Wait Until Tomorrow  03:00 
+ 5 Aint No Telling     01:46 
+ 6 Little Wing          02:24 
+ 7 If 6 was 9           05:32 
+ 8 You Got Me Floatin   02:45 
+ 9 Castles Made of Sand 02:46 
+10 Shes So Fine        02:37 
+11 One Rainy Wish       03:40 
+12 Little Miss Lover    02:20 
+13 Bold as Love         04:11 
+
+$`Electric Ladyland`
+# A tibble: 16 x 2
+   song                                       length
+   <chr>                                      <time>
+ 1 And the Gods Made Love                     01:21 
+ 2 Have You Ever Been (To Electric Ladyland)  02:11 
+ 3 Crosstown Traffic                          02:25 
+ 4 Voodoo Chile                               15:00 
+ 5 Little Miss Strange                        02:52 
+ 6 Long Hot Summer Night                      03:27 
+ 7 Come On (Part 1)                           04:09 
+ 8 Gypsy Eyes                                 03:43 
+ 9 Burning of the Midnight Lamp               03:39 
+10 Rainy Day, Dream Away                      03:42 
+11 1983... (A Merman I Should Turn to Be)     13:39 
+12 Moon, Turn the Tides... Gently Gently Away 01:02 
+13 Still Raining, Still Dreaming              04:25 
+14 House Burning Down                         04:33 
+15 All Along the Watchtower                   04:01 
+16 Voodoo Child (Slight Return)               05:12
+```
+
+**Instructions**
+
+- Examine `discography` and `jimi`.
+- Bind `jimi` by rows into a single data frame. As you do, save the data frame names as a column named `album` by specifying the `.id` argument to `bind_rows()`.
+- Left join `discography` to the results to make a complete data frame.
+
+```{r}
+# Examine discography and jimi
+discography
+jimi
+
+jimi %>% 
+  # Bind jimi by rows, with ID column "album"
+  bind_rows(.id = "album")  %>%
+  # Make a complete data frame
+  left_join(discography, by = "album")
+```
+
+
+
+### EXERCISE 2: Bind columns
+
+Let's make a compilation of Hank Williams' 67 singles. To do this, you can use `hank_years` and `hank_charts`:
+
+- `hank_years` contains the name and release year of each of Hank Williams' 67 singles.
+- `hank_charts` contains the name of each of Hank Williams' 67 singles as well as the highest position it earned on the Billboard sales charts.
+
+Each dataset contains the same songs, but `hank_years` is arranged chronologically by year, while `hank_charts` is arranged alphabetically by song title.
+
+```{r}
+> hank_years
+# A tibble: 67 x 2
+    year song                                   
+   <int> <chr>                                  
+ 1  1947 Move It On Over                        
+ 2  1947 My Love for You (Has Turned to Hate)   
+ 3  1947 Never Again (Will I Knock on Your Door)
+ 4  1947 On the Banks of the Old Ponchartrain   
+ 5  1947 Pan American                           
+ 6  1947 Wealth Won_t Save Your Soul            
+ 7  1948 A Mansion on the Hill                  
+ 8  1948 Honky Tonkin_                          
+ 9  1948 I Saw the Light                        
+10  1948 I_m a Long Gone Daddy                  
+# ... with 57 more rows
+> hank_charts
+# A tibble: 67 x 2
+   song                             peak
+   <chr>                           <int>
+ 1 (I Heard That) Lonesome Whistle     9
+ 2 (I_m Gonna) Sing, Sing, Sing       NA
+ 3 A Home in Heaven                   NA
+ 4 A Mansion on the Hill              12
+ 5 A Teardrop on a Rose               NA
+ 6 At the First Fall of Snow          NA
+ 7 Baby, We_re Really in Love          4
+ 8 California Zephyr                  NA
+ 9 Calling You                        NA
+10 Cold, Cold Heart                    1
+# ... with 57 more rows
+```
+
+**Instructions**
+
+- Examine `hank_years` and `hank_charts`. How should you bind the two datasets?
+- Use `arrange()` to reorder `hank_years` alphabetically by song title.
+- Select just the `year` column of the result.
+- Bind the `year` column to `hank_charts`.
+- `arrange()` the resulting dataset chronologically by year, then alphabetically by song title within each year.
+
+```{r}
+# Examine hank_years and hank_charts
+hank_years
+hank_charts
+
+hank_years %>% 
+  # Reorder hank_years alphabetically by song title
+  arrange(song) %>% 
+  # Select just the year column
+  select(year) %>% 
+  # Bind the year column
+  bind_cols(hank_charts) %>% 
+  # Arrange the finished dataset
+  arrange(year)
+```
+
+
+
+## 3.2 Build better data frame
+
+In R, 2 of the most common functions for building data frame are
+
+- `data.frame()`: 
+- `as.data.frame()`: 
+
+Updatedly advisable version from dplyr
+
+- `data_frame()`
+- `as_data_frame()`: turns a list of col into data frame. parallels the `as.data.frame()`
+
+
+
+**Why?** `data.frame()`
+
+- change the data type from strings to factors
+- ...Add row names to your dataset
+- ...change col names without warning
+
+While `data_frame()` (return vectors as cols)
+
+- will not change the data type of vectors (e.g. string to factor)
+
+- X add row names
+
+- X change col name
+
+- X recycle vectors greater than length one to fil up a data frame, which means that your vectors must all be of the same length, or the offending vectors must only have one value, which then appear in every row.
+
+- evaluate args lazily in order, which means you can refer to one previous col to build a following col
+
+  e.g.
+
+  ```{r}
+  data_frame(
+      numbers = 1:5,
+      squiares = numbers ^ 2)
+  )
+  ```
+
+- gives the results a tibble rather than data.frame
+
+
+
+### EXERCISE 3: Make a data frame
+
+```{r}
+# Make combined data frame using data_frame()
+data_frame(year = hank_year, song = hank_song, peak = hank_peak) %>% 
+  # Extract songs where peak equals 1
+  filter(peak == 1)
+```
+
+### EXERCISE 4: Lists of cols
+
+hank = 3 lists (vectors)
+
+```{r}
+# Examine the contents of hank
+hank
+
+# Convert the hank list into a data frame
+as_data_frame(hank) %>% 
+  # Extract songs where peak equals 1
+  filter(peak == 1)
+```
+
+
+
+### EXERCISE 5: Lists of rows (data frames) -> use bind_rows() than as_data_frame()
+
+**Use bind_rows() as a complement to as_data_frame()**
+
+**Scenario**
+
+`michael` contains a list of data frames, one for each album released by Michael Jackson. The code in the editor attempts to bind the data frames into a single data frame and then extract a data frame of the top tracks on each album.
+
+However, the code runs into a problem. The commented line fails because `as_data_frame()`combines a list of column vectors into a data frame. However, `michael` is a list of data frames.
+
+**Instructions**
+
+michael = lists (albums) of data frames
+
+- Examine the contents of `michael`.
+- Replace the commented code in the editor with a call to a `dplyr` function, which should bind the datasets in the list into a single data frame, adding an `album` column as it does.
+
+```{r}
+# Examine the contents of michael
+michael
+
+# Replace the first line so each album has its own rows
+bind_rows(michael, .id = "album") %>% 
+  group_by(album) %>% 
+  mutate(rank = min_rank(peak)) %>% 
+  filter(rank == 1) %>% 
+  select(-rank, -peak)
+```
+
+
+
+## 3.3 Data types 数据类型
+
+Must know whenever combining vectors of data or tables of data
+
+![6](C:\R\joining-data-in-r-with-dplyr\6.JPG)
+
+
+
+**R's coercion rules:** R follows a set of coercion rules
+
+1. every piece of data in R is saved as a vector, even single value
+2. Unless the vector is a list, every in a vector must be of the same type
+3. R developers can create new classes by starting these 6 atomic types, and then giving the vector an attribute and other metadata saved as attributes.
+
+```{r}
+# R's 6 atomic data types
+typepf(TRUE)
+[1] "logical"
+
+typeof("hello")  # character(i.e. string)
+[1] "character"
+
+typeof(3.14)     # double(i.e. numeric/decimal)
+[1] "double"
+
+typeof(1L)       # integer(i.e numeric/demical)
+[1] "integer"
+
+typeof(1 + 21)   # complex
+[1] "complex"
+
+typeof(raw(1))   # Raw
+[1] "raw"
+```
+
+**A factor DEF** is an integer vector that has a  factor class attribute, a levels attribute, and sometimes a labels attribute. Factors are designed to store categorical information (**dummy variable**). 
+
+*Whenever a 1 appears in the factor, R displays the first level or label*
+
+*Whenever a 2 appears, R displays the second level or label, and so on*
+
+```{r}
+x <- c(1L, 2L, 3L, 2L) # 注意这里最后是2L
+> typeof(x)
+[1] "integer"
+> class(x)
+[1] "integer"
+
+attribute(x) <- list(class = "factor"
+                     levels = c("A", "B", "C", "D"))
+
+> x
+[1] A B C B  # 注意这里是B, 对应上面的2L
+Levels: A B C D
+> typeof(x)
+[1] "integer"
+> class(x)
+[1] "factor"
+```
+
+
+
+### EXERCISE 6: Atomic data types
+
+```{r}
+# R will coerce logicals and numerics to strings if strings are present.
+c(TRUE, 1, "a")
+
+#R will coerce logicals to numerics if numerics are present.
+c(TRUE, 1)
+
+# as.character() will coerce factors to their labels as strings if strings are present.
+as.character(factor(month.abb))
+
+# as.numeric() will coerce factors to their levels as numerics if numerics are present.
+as.numeric(factor(month.abb))
+
+
+```
+
+### 3.3.1 Factor levels
+
+Refer to [Introduction to R]()
+
+**DEF factors**: An integer vector that is saved with a set of labels or levels
+
+When you first get a data set, you will often notice that it contains factors with specific factor levels. However, sometimes you will want to change the names of these levels for clarity or other reasons. R allows you to do this with the function [`levels()`](http://www.rdocumentation.org/packages/base/functions/levels):
+
+```
+levels(factor_vector) <- c("name1", "name2",...)
+```
+
+A good illustration is the raw data that is provided to you by a survey. A common question for every questionnaire is the sex of the respondent. Here, for simplicity, just two categories were recorded, `"M"` and `"F"`. (You usually need more categories for survey data; either way, you use a factor to store the categorical data.)
+
+```
+survey_vector <- c("M", "F", "F", "M", "M")
+```
+
+Recording the sex with the abbreviations `"M"` and `"F"` can be convenient if you are collecting data with pen and paper, but it can introduce confusion when analyzing the data. At that point, you will often want to change the factor levels to `"Male"` and `"Female"` instead of `"M"` and `"F"`for clarity.
+
+**Watch out:** the order with which you assign the levels is important. If you type `levels(factor_survey_vector)`, you'll see that it outputs `[1] "F" "M"`. If you don't specify the levels of the factor when creating the vector, `R` will automatically assign them alphabetically. To correctly map `"F"` to `"Female"` and `"M"` to `"Male"`, the levels should be set to `c("Female", "Male")`, in this order.
+
+**Instructions**
+
+- Check out the code that builds a factor vector from `survey_vector`. You should use `factor_survey_vector` in the next instruction.
+- Change the factor levels of `factor_survey_vector` to `c("Female", "Male")`. Mind the order of the vector elements here.
+
+```{r}
+# Code to build factor_survey_vector
+survey_vector <- c("M", "F", "F", "M", "M")
+factor_survey_vector <- factor(survey_vector)
+
+# Specify the levels of factor_survey_vector
+levels(factor_survey_vector) <- c("Female", "Male")
+
+factor_survey_vector
+
+```
+
+The result
+
+```{r}
+> factor_survey_vector
+[1] M F F M M
+Levels: F M
+
+> factor_survey_vector
+[1] Male   Female Female Male   Male  
+Levels: Female Male
+```
+
+
+
+## 3.4 dplyr's Coercion rules
+
+Character(string) > Double>Integer>Logical(T -> "TRUE"/1, F -> "FALSE"/0)
+
+R coverts the more specific to the more general. If you would like to convert data from one type to another
+
+`as.character()`, `as.numeric()`, `as.integer()`
+
+**But** things become a little tricky when some of your data is stored as **factors**. 
+
+```{r}
+# x is a factor
+> x
+[1] A B C B
+Levels: A B C D
+
+# How is x stored
+> unclass(x)
+[1] 1 2 3 2
+attr(, "levels")
+[1] "A" "B" "C" "D"
+```
+
+When you coerce a factor with as.charactor(), R will convert the factors labels to strings and give the result as a string 
+
+When coerce a factor with as.numeric() or as.integer(), R will convert the factor's underlying integer vectors/representations to doubles or integers.
+
+```{r}
+> as.character(x)
+[1] "A" "B" "C" "B"
+> as.numeric(x)
+[1] 1 2 3 2
+```
+
+These coercion can happen **manually as well as automatically**, when I combine a factor with a double or integer.
+
+```{r}
+# x is a factor
+> y <- factor(c(5, 6, 7, 6))
+> y
+[1] 5 6 7 6
+Levels: 5 6 7
+
+# How is x stored
+> unclass(y)
+[1] 1 2 3 2
+attr(, "levels")
+[1] "5" "6" "7"
+```
+
+```{r}
+> as.character(y)
+[1] "5" "6" "7" "6"
+> as.numeric(x)
+[1] 1 2 3 2
+
+# So to convert it to the way you expect, you need a 2-step conversion that will never happen automatically
+> as.numeric(as.character(y))
+[1] 5 6 7 6
+```
+
+`dplyr`'s coercion rules
+
+1. `dplyr` functions will not automatically coerce data types
+   - Instead, it will returns an error
+   - Expects you to manually coerce data
+2. Exception: factors
+   - In these situations, dplyr will simply convert the non-aligning factors to strings and then combine the data
+   - Gives warning message
+
+All in all, dplyr's `bind_rows()` and `bind_cols()` will
+
+- coerce two factors to a string if the factors have different levels.
+- coerce two factors to a string if the factors have the same levels in a different order.
+- return an error instead of coercing logicals, integers, and numerics to a character.
+
+### EXERCISE 7: factors -> numeric
+
+`sixties` contains the top selling albums in the US in the 1960s. It stores `year` as a numeric (double). When you combine it with `seventies`, which stores `year` as a factor, `bind_rows()`returns an error.
+
+You can fix this by coercing `seventies$year` to a numeric. But if you do it like this, something surprising happens.
+
+```
+seventies %>% 
+  mutate(year = as.numeric(year))
+```
+
+Can you fix things?
+
+
+
+```
+seventies %>% 
+  # Coerce seventies$year into a useful numeric
+  mutate(year = as.numeric(as.character(year))) %>% 
+  # Bind the updated version of seventies to sixties
+  bind_rows(sixties) %>% 
+  arrange(year)
+```
+
+
+
+# 4. Advanced joining
+
+What can go wrong with joins and quickly fix errors
+
+how to join multiple data, how to compare dplyr's join functions to other systems for combining data.
+
+## 4.1 What can go wrong - 4 types
+
+![7](C:\R\joining-data-in-r-with-dplyr\7.JPG)
+
+### 4.1.1 Missing key value
+
+When a row in your primary dataset contains an NA in the key column -> can do nothing. If located, simply remove that ob with filter()
+
+```{r}
+namesNA %>%
+    filter(!is.na(name)) %>%
+    left_join(plays, by = "name")
+```
+
+### EXERCISE 1
+
+Julie Andrews is a famous singer who performed in *The Sound of Music*, which is documented in the `singers` data frame. The `two_songs` data frame records a couple of songs that she sang during her career.
+
+Unfortunately, when you join the datasets together, something odd happens. According to the result, who sings *A Spoonful of Sugar*? Why does this happen?
+
+You can avoid this outcome by removing rows that contain `NA`s in the keys before joining.
+
+```{r}
+# Examine the result of joining singers to two_songs
+> two_songs %>% inner_join(singers, by = "movie")
+
+
+# A tibble: 2 x 3
+  song                movie              singer               
+  <chr>               <chr>              <chr>                
+1 Do-Re-Mi            The Sound of Music Julie Andrews        
+2 A Spoonful of Sugar <NA>               Arnold Schwarzenegger
+
+
+> # Remove NA's from key before joining
+> two_songs %>% 
+    filter(!is.na(movie)) %>% 
+    inner_join(singers, by = "movie")
+
+
+# A tibble: 1 x 3
+  song     movie              singer       
+  <chr>    <chr>              <chr>        
+1 Do-Re-Mi The Sound of Music Julie Andrews
+```
+
+
+
+
+
+### 4.1.2 Missing key columns
+
+When there is no column in your data to match against the secondary dataset.
+
+-> check the row names of my data before giving up. In the past, it was common practice with R to store identifying information in the row names of a data frame. If  the variable names are hidden in the rows, use the `rownames_to_column()`
+
+```{r}
+library(tibble)
+rownames_to_column(noNames, var = "name")
+# arg: name of table and name of column to add
+```
+
+### EXERCISE 2
+
+R's data frames can store important information in the `row.names` attribute. This is not a *tidy* way to store data, but it does happen quite commonly. If the primary key of your dataset is stored in `row.names`, you will have trouble joining it to other datasets.
+
+**Instructions**
+
+- Load the `tibble` package.
+- Use `rownames_to_column()` to add the row names of `stage_songs` to the data frame as a column named `song`.
+- Left join `stage_writers` to `stage_songs`.
+
+```{r}
+# Load the tibble package
+library(tibble)
+
+stage_songs %>% 
+  # Add row names as a column named song
+  rownames_to_column(var = "song")%>% 
+  # Left join stage_writers to stage_songs
+  left_join(stage_writers, by = "song")
+```
+
+
+
+### 4.1.3 Duplicate key values
+
+dplyr's join function will still work even if your primary dataset contains duplicate keys. However, dplyr will return every combination of key value matched across datasets.(**笛卡尔积 Cartesian Product**)
+
+
+
+
+
+### 4.1.4 Duplicate key columns
+
+To solve this, define your own key
+
+
+
+## 4.2 Define my own keys
+
+Sometimes a key column will appear under dif names in dif datasets
+
+![8](C:\R\joining-data-in-r-with-dplyr\8.JPG)
+
+In this case, we need to tell dplyr how to spot the key. To match columns accross datasets, set the by argument to a named vector.
+
+```{r}
+leftjoin(members, plays, by = c("member" = "name"))
+                        # col in the 1st dataset
+                                      # col in the 2nd dataset  
+```
+
+You can also use the technique even your key contains multiple columns
+
+
+
+You can also have the opposite problem, where each dataset contains a column with the same name, but the columns are not key columns. **Specify the keys in the by argument**. Don't let the dplyr find its own keys (it will match all the cols with the same name as keys). 
+
+dplyr will add a suffix to the common column names in my final result
+
+![9](C:\R\joining-data-in-r-with-dplyr\9.JPG)
+
+you can set the suffix by setting the suffix argument of a mutating join to a vector of length 2.
+
+```{r}
+left_join(playWith, plays, by = "names", suffix = c("1", "y"))
+```
+
+
+
+### EXERCISE 3: A subset of keys
+
+the data frame `movie_studios` uses `name` to refer to the name of a movie studio. `movie_years` uses `name` to refer to the name of an actor.
+
+**Instructions**
+
+- Left join `movie_studios` to `movie_years` by the `movie` column. What happens to the duplicated column names?
+
+- Use `rename()` to rename the `name` column of `movie_years` to `artist`, and the `name`column of `movie_studios` to `studio`. As an example, `rename(data, new_name = old_name)` renames `old_name` to `new_name` in `data`.
+
+  新名在前，旧名在后
+
+```{r}
+movie_years %>% 
+  # Left join movie_studios to movie_years
+  left_join(movie_studios, by = "movie") %>% 
+  # Rename the columns: artist and studio
+  rename("artist" = "name.x", "studio" = "name.y")
+```
+
+
+
+### EXERCISE 4: Mismatched key names
+
+
+
+
+
+To make the join, set `by` to a named vector. The names of the vector will refer to column names in the primary dataset (`x`). The values of the vector will correspond to the column names in the secondary dataset (`y`), e.g.
+
+```
+x %>% left_join(y, by = c("x.name1" = "y.name2"))
+```
+
+`dplyr` will make the join and retain the names in the primary dataset.
+
+**Instructions**
+
+- Identify the column in `elvis_songs` that corresponds to a column in `elvis_movies`.
+- Left join `elvis_songs` to `elvis_movies` by this column.
+- Use `rename()` to give the result the column names `movie`, `year`, and `song`.
+
+```{r}
+# Identify the key column
+elvis_songs
+elvis_movies
+
+elvis_movies %>% 
+  # Left join elvis_songs to elvis_movies by this column
+  left_join(elvis_songs, by = c("name" = "movie")) %>% 
+  # Rename columns
+  rename("song" = "name.y", "movie" = "name" )
+```
+
+The result:
+
+```{r console}
+# Before rename
+# A tibble: 5 x 3
+  name            year name.y                              
+  <chr>          <int> <chr>                               
+1 Jailhouse Rock  1957 (You_re So Square) Baby I Don_t Care
+2 Jailhouse Rock  1957 Jailhouse Rock                      
+3 Blue Hawaii     1961 I Can_t Help Falling in Love        
+4 Viva Las Vegas  1963 Viva Las Vegas                      
+5 Clambake        1967 You Don_t Know Me
+
+# After
+# A tibble: 5 x 3
+  movie           year song                                
+  <chr>          <int> <chr>                               
+1 Jailhouse Rock  1957 (You_re So Square) Baby I Don_t Care
+2 Jailhouse Rock  1957 Jailhouse Rock                      
+3 Blue Hawaii     1961 I Can_t Help Falling in Love        
+4 Viva Las Vegas  1963 Viva Las Vegas                      
+5 Clambake        1967 You Don_t Know Me
+```
+
+**Takeaway from the result**
+
+- **the primary key col kept its name when forced to match by `by`**
+- when secondary have a duplicate col name which is not the key but is the same as the key in the primary dataset, the primary key will not be modified while the secondary will be assed a suffix in default.
+
+
+
+### EXERCISE 5: More mismatched names
+
+`movie_years` and `movie_directors` both describe movies that feature Frank Sinatra and Bing Crosby. However, each data frame uses different column names to refer to the key variables that connect the datasets.
+
+**Instructions**
+
+- Identify the key columns that connect `movie_directors` to `movie_years`.
+- Left join `movie_directors` to `movie_years`.
+- Use `select()` to arrange the columns in the following order with the following names: `year`, `movie`, `artist`, `director`, `studio`.
+
+```{r}
+# Identify the key columns
+movie_directors
+movie_years
+
+movie_years %>% 
+  # Left join movie_directors to movie_years
+  left_join(movie_directors, by = c("movie" = "name")) %>% 
+  # Arrange the columns using select()
+  select(year, movie, name, director, studio) %>%
+  rename("artist" = "name")
+```
+
+
+
+## 4.3 Joining multiple tables
+
+1. In a recursive action with multiple join() and pipe operators
+2. Better with the [purrr]() package. Apply functions in an efficient way: [reduce()](). `reduce()` applies its second arg recursively to the element of the 1st arg, a list
+
+```{r}
+# install purrr from CRAN in a usual way
+install.packages("purrr")
+library(purrr)
+
+# To use reduce to join multiple tables, first combines the datasets to a list
+tables <- list(surnames, names, plays)
+# And then pass the list as the 1st arg of the reduce, pass the dun as an object
+reduce(tables, left_join, by = "name")
+```
+
+`reduce()` will work for any function that can accept element from a lists as its first 2 args
+
+If you wish to use reduce to apply a function that takes more than 2 args, you can pass remaining args directly to reduce as we did here with the by arg
+
+### EXERCISE 6: `reduce()`
+
+```{r}
+# Load the purrr library
+library(purrr)
+
+# Place supergroups, more_bands, and more_artists into a list
+list(supergroups, more_bands, more_artists) %>% 
+  # Use reduce to join together the contents of the list
+  reduce(left_join, by = c("first", "last"))
+```
+
+Use `reduce()` to return just the rows of `more_artists` that appear in all three datasets.
+
+```{r}
+list(more_artists, more_bands, supergroups) %>% 
+  # Return rows of more_artists in all three datasets
+  reduce(semi_join, by = c("first", "last"))
+```
+
+
+
+## 4.4 Other implementation 
+
+### 4.4.1 merge()
+
+```{r}
+merge(names, plays, by = "name", ...)
+```
+
+a super function, that attempts to provide every type of mutating join with a single function
+
+- left_join
+
+  ```{r}
+  merge(names, plays, by = "names", all.x = TRUE, all.y = FALSE)
+  ```
+
+- right_join
+
+  ```{r}
+  merge(names, plays, by = "names", all.x = FALSE, all.y = TRUE)
+  ```
+
+- Inner_join
+
+  ```{r}
+  merge(names, plays, by = "names", all = FALSE)
+  # This is the default for merge()
+  ```
+
+- full_join
+
+  ```{r}
+  merge(names, plays, by = "names", all = TRUE)
+  ```
+
+
+
+### 4.4.2 SQL
+
+- left_join
+
+  ```sql
+  SELECT *
+  FROM x
+  LEFT JOIN y ON x.a = y.a
+  ```
+
+- right_join
+
+  ```sql
+  SELECT *
+  FROM x
+  RIGHT JOIN y ON x.a = y.a
+  ```
+
+- Inner_join
+
+  ```sql
+  SELECT *
+  FROM x
+  JOIN y ON x.a = y.a
+  ```
+
+- full_join
+
+  ```sql
+  SELECT *
+  FROM x
+  FULL JOIN y ON x.a = y.a
+  ```
+
+- semi_join
+
+  ```sql
+  SELECT *
+  FROM x
+  WHERE EXISTS
+      (SELECT 1 
+      FROM y 
+      WHERE x.a = y.a)
+  ```
+
+- anti_join
+
+  ```sql
+  SELECT *
+  FROM x
+  WHERE NOT EXISTS
+      (SELECT 1 
+      FROM y 
+      WHERE x.a = y.a)
+  ```
+
+Each of the functions will build a connection to a specific database with a specific data management system
+
+First, install the DBI package from CRAN to use them
+
+```{r}
+install.packages("DBI")
+```
+
+|    Function    |      DBMS      |
+| :------------: | :------------: |
+|  src_sqlite()  |     SQLite     |
+|  src_mysql()   | MySQL, MariaDB |
+| src_postgres() |   PostgreSQL   |
+
+```{r}
+# Connect to a database
+air <- src_postgres(dbname = "airontime", host = "sol-eng-sparklyr.cyii7eabibhu.us-east-1.redshift,amazonaws.com", port = "5439", user = "redshift_user", password = "ABCd4321")
+
+# Once connected, view tables in database
+src_tbls(air)
+"flights" "planes"
+
+# Create a table references
+flights <- tbl(air, "flights")
+planes <- ybl(air, "plane")
+
+# Mnipulate with dplyr code written in R and dplyr will translate the code to SQL and send the SQL to the database to run on the tables in the database
+#dplyr will pull only the first ten rows of the result back to R for me to inspect
+flights <- left_join(flights, planes, by = "tailnum")
+
+# Or I can import the entire result into R with the collect()
+flights <- collect(flights)
+```
+
+
+
+### 4.4.3 To learn more about dplyr's database implementation
+
+```{r}
+# Run this code
+vignette("databases", package = "dplyr")
+```
+
+
+
+
+
+# 5. Case study
+
+Hone your skill
+
+## 5.1 Introduction to the case DB
+
+**Lahman's Baseball Database** -- real world realational data
+
+- library(Lehman)
+- Sean Lahman's Baseball Database
+- 26 tables
+
+tables of team rosters, batting statistics, salaries, and much more. Sabermetrics statistics from 1871 to 2012
+
+### 5.1.1 Examine common var across 26 tables
+
+```{r}
+# Examine lahmanNames
+lahmanNames
+
+# Find variables in common
+reduce(lahmanNames, intersect) # 不需要加括号intersect()
+```
+
+
+
+### 5.1.2 Common keys
+
+No variables span all 26 datasets, but several variables span more than one dataset. These variables provide relationships between the various tables in Lahman. Can you find them?
+
+**Instructions**
+
+- Bind the data frames in `lahmanNames` into a single table that includes a new column called `dataframe`, which contains the names of the data frames.
+- Group the result by `var`.
+- Tally the number of appearances of each `var`. using [tally()](https://www.rdocumentation.org/packages/dplyr/versions/0.7.8/topics/tally) as required
+- Filter the data to only variables that appear more than once.
+- Arrange the results so that the most frequently used variables appear before less frequently used variables.
+
+```{r}
+lahmanNames %>%  
+  # Bind the data frames in lahmanNames
+  bind_rows(.id = "dataframe") %>%
+  # Group the result by var
+  group_by(var) %>%
+  # Tally the number of appearances
+  tally() %>%
+  # Filter the data
+  filter(n > 1) %>%
+  # Arrange the results in descending order
+  arrange(desc(n))
+```
+
+The result:
+
+```{r}
+# A tibble: 59 x 2
+   var          n
+   <chr>    <int>
+ 1 yearID      21
+ 2 playerID    19
+ 3 lgID        17
+ 4 teamID      13
+ 5 G           10
+ 6 L            6
+ 7 W            6
+ 8 BB           5
+ 9 CS           5
+10 GS           5
+# ... with 49 more rows
+```
+
+
+
+### 5.1.3 Extract dataframe names that contain var "playerID"
+
+**Instructions**
+
+- Bind the data frames in `lahmanNames` into a single table that includes the column `dataframe`, which contains the names of the data frames.
+- Filter the results to just rows that contain `playerID`.
+- Extract the `dataframe` variable. ['$'()]() return the rows of a var as a list of string
+
+```{r}
+lahmanNames %>% 
+  # Bind the data frames
+  bind_rows(.id = "dataframe") %>%
+  # Filter the results
+  filter(var == "playerID") %>% 
+  # Extract the dataframe variable
+  `$`(dataframe)
+```
+
+The result:
+
+```{r}
+ [1] "AllstarFull"         "Appearances"         "AwardsManagers"     
+ [4] "AwardsPlayers"       "AwardsShareManagers" "AwardsSharePlayers" 
+ [7] "Batting"             "BattingPost"         "CollegePlaying"     
+[10] "Fielding"            "FieldingOF"          "FieldingPost"       
+[13] "HallOfFame"          "Managers"            "ManagersHalf"       
+[16] "Master"              "Pitching"            "PitchingPost"       
+[19] "Salaries"
+```
+
+
+
+## 5.2 Salaries
+
+How much are their work
+
+whether overpaid or underpaid by comparing his performance statistics to the information in the salary table
+
+```{r}
+as.tibble(Salaries)
+```
+
+But before I do this, it is good to check this table for **sample bias**. For example, systematically missing information.
+
+Useful tactics:
+
+1. `distinct()`: takes a table and returns a copy of the table that has had all of the duplicate rows removed.
+
+   ```
+   > multinames
+   > distinct(multinames)
+   ```
+
+   In the video, you saw how to use [`distinct()`](https://www.rdocumentation.org/packages/dplyr/topics/distinct) to find unique rows for all columns in a table. You can also find unique rows for specific columns using the following syntax:
+
+   ```{r}
+   tbl %>%
+     # Find unique rows of columns a,b, and c
+     distinct(a, b, c)
+   ```
+
+2. count(): takes a table and counts the number of rows in it, essentially the same work as tally(). However, if you pass count a vars arg, it will count the number of rows that share each distinct value in the `vars` variable.
+
+   ```{r}
+   count(names, var = band)
+   ```
+
+   the above code does the equivalent of first grouping names by band and then running count
+
+### EXERCISE 1: Who are the players
+
+Use `Master` to create `players`, a data frame that contains one row and three columns for each distinct player. The columns should be `playerID`, `nameFirst`, and `nameLast`, in that order.
+
+```
+players <- Master %>% 
+  # Return one row for each distinct player
+  distinct(playerID, nameFirst, nameLast)
+```
+
+The result contains 19105 rows
+
+
+
+### EXERCISE 2: Missing salaries and Unpaid games
+
+**Instructions**
+
+- Use a join to find all of the `players` who do not appear in `Salaries`.
+- Then use the `dplyr` function [`count()`](https://www.rdocumentation.org/packages/dplyr/topics/tally) to count how many `players` do not appear in `Salaries`.
+
+```{r}
+players %>% 
+  # Find all players who do not appear in Salaries
+  anti_join(Salaries, by = "playerID") %>%
+  # Count them
+  count()
+```
+
+```{r}
+# A tibble: 1 x 1
+      n
+  <int>
+1 13958
+```
+
+
+
+Now that we know there is a huge hole in the salary data, let's see if we can explain it. Is it possible that these players somehow did not play (and hence did not earn a salary)?
+
+We can check with the `Appearances` data frame. `Appearances` contains information about every game played in major league baseball. That is, if a player played a game, it would show up as a row in `Appearances`.
+
+**Instructions**
+
+Add a join to the pipe to determine how many (if any) unsalaried players played at least one game.
+
+```{r}
+players %>% 
+  anti_join(Salaries, by = "playerID") %>% 
+  # How many unsalaried players appear in Appearances?
+  semi_join(Appearances, by = "playerID") %>% 
+  count()
+```
+
+```{r}
+# A tibble: 1 x 1
+      n
+  <int>
+1 13765
+```
+
+
+
+### EXERCISE 3: How many games are unpaid
+
+**Instructions**
+
+- Recalculate the list of players who do not appear in `Salaries` with the `anti_join()` function.
+- Then left join them to `Appearances`.
+- Group the data by `playerID` and calculate the `total_games` that each player played. This will be the `sum()` of `G_all`, ignoring `NA`s .
+- Arrange the summarized data in descending order by `total_games`.
+
+```{r}
+players %>% 
+  # Find all players who do not appear in Salaries
+  anti_join(Salaries, by = "playerID") %>% 
+  # Join them to Appearances
+  left_join(Appearances, by = "playerID") %>% 
+  # Calculate total_games for each player
+  group_by(playerID) %>%
+  summarize(total_games = sum(G_all, is.na = F)) %>%
+  # Arrange in descending order by total_games
+  arrange(desc(total_games))
+```
+
+```{r}
+# A tibble: 13,958 x 2
+   playerID  total_games
+   <chr>           <int>
+ 1 yastrca01        3309
+ 2 aaronha01        3299
+ 3 cobbty01         3035
+ 4 musiast01        3027
+ 5 mayswi01         2993
+ 6 robinbr01        2897
+ 7 kalinal01        2835
+ 8 collied01        2825
+ 9 robinfr02        2809
+10 wagneho01        2796
+# ... with 13,948 more rows
+```
+
+
+
+### EXERCISE 4: How many at-bats?
+
+Is it possible that the unsalaried players did not actually play in the games that they appeared in? One way to check would be to determine if the players had an at-bat (i.e. batted) in the games that they appeared in.
+
+Repeat your process in the previous exercise with `Batting` instead of `Appearances`:
+
+```{r}
+players %>%
+  # Find unsalaried players
+  anti_join(Salaries, by = "playerID") %>% 
+  # Join Batting to the unsalaried players
+  left_join(Batting, by = "playerID") %>% 
+  # Group by player
+  group_by(playerID) %>% 
+  # Sum at-bats for each player
+  summarize(total_at_bat = sum(AB, is.na = F)) %>% 
+  # Arrange in descending order
+  arrange(desc(total_at_bat))
+```
+
+```{r}
+# A tibble: 13,958 x 2
+   playerID  total_at_bat
+   <chr>            <int>
+ 1 aaronha01        12364
+ 2 yastrca01        11988
+ 3 cobbty01         11434
+ 4 musiast01        10972
+ 5 mayswi01         10881
+ 6 robinbr01        10654
+ 7 wagneho01        10430
+ 8 brocklo01        10332
+ 9 ansonca01        10277
+10 aparilu01        10230
+# ... with 13,948 more rows
+```
+
+
+
+## 5.3 Hall of fame
+
+```{r}
+library(Lahman)
+as.tibble(HallOfFame)
+```
+
+Most admirable players chosen by their peers. It is interestingly speculated that on which quality separate a fame member from other baseball players
+
+
+
+### EXERCISE 5:  Hall of fame nominations
+
+Let's see how many players have been nominated for the Hall of Fame.
+
+**Instructions**
+
+- Create `nominated`, a data frame that contains the distinct players (by `playerID`) that appear in the `HallOfFame` dataset.
+- Count the number of players in `nominated` with `count()`.
+- Add `nameFirst` and `nameLast` values from the `Master` data frame to `nominated`. Store the result to a data frame called `nominated_full`.
+
+```
+# Find the distinct players that appear in HallOfFame
+nominated <- HallOfFame %>% 
+  distinct(playerID)
+
+nominated %>% 
+  # Count the number of players in nominated
+  count()
+
+nominated_full <- nominated %>% 
+  # Join to Master
+  left_join(Master, df = "playerID") %>% 
+  # Return playerID, nameFirst, nameLast
+  select(playerID, nameFirst, nameLast)
+```
+
+```{r}
+# A tibble: 1 x 1
+      n
+  <int>
+1  1260
+```
+
+
+
+### EXERCISE 6:  Hall of fame inductions
+
+induction: 归纳法；引产；电磁感应；就职
+
+Let's now see how many players were admitted to the hall of fame to examine how selective the voting process is.
+
+**Instructions**
+
+- Repeat the process you saw in the last exercise to create `inducted`, a data frame that contains the distinct players (by `playerID`) that appear in `HallOfFame` and have the value `inducted == "Y"`.
+- Count the number of players in `inducted` with `count()`.
+- Add `nameFirst` and `nameLast` values from the `Master` data frame to `inducted`. Store the result to a data frame called `inducted_full`.
+
+```{r}
+# Find distinct players in HallOfFame with inducted == "Y"
+inducted <- HallOfFame %>% 
+  filter(inducted == "Y") %>%
+  distinct(playerID)
+  
+
+inducted %>% 
+  # Count the number of players in inducted
+  count()
+
+inducted_full <- inducted %>% 
+  # Join to Master
+  left_join(Master, by = "playerID") %>% 
+  # Return playerID, nameFirst, nameLast
+  select(playerID, nameFirst, nameLast)
+```
+
+```{r}
+# A tibble: 1 x 1
+      n
+  <int>
+1   317
+```
+
+
+
+### EXERCISE 7: Is awards separating inductees from nominees who were not inductees?
+
+what separates the inducted from the nominees
+
+Let's start with a simple question: Did nominees who were inducted earn more awards than nominees who were not inducted?
+
+We can use `AwardsPlayers` to answer the question. It lists the `playerID`'s of players who won baseball awards, and it contains one row for each award awarded in major league baseball.
+
+**Instructions**
+
+- `tally()` the number of awards in `AwardsPlayers` for each `playerID` and save the results as `nAwards`. Note that the resulting column containing the number of awards is called `n` by default.
+- Filter `nAwards` to include the players in `inducted` and calculate the mean number of awards per player (set `na.rm = TRUE`). Call the mean number of awards `avg_n`.
+- Filter `nAwards` to include the players in `nominated` who are not present in `inducted` and calculate the mean number of awards per player (set `na.rm = TRUE`). Again, call the mean number of awards `avg_n`.
+
+```{r}
+# Tally the number of awards in AwardsPlayers by playerID
+nAwards <- AwardsPlayers %>% 
+  group_by(playerID) %>% 
+  tally()
+
+nAwards %>% 
+  # Filter to just the players in inducted 
+  semi_join(inducted, by = "playerID") %>% 
+  # Calculate the mean number of awards per player
+  summarize(avg_n = mean(n, na.rm = TRUE))
+
+nAwards %>% 
+  # Filter to just the players in nominated 
+  semi_join(nominated, by = "playerID") %>% 
+  # Filter to players NOT in inducted 
+  anti_join(inducted, by = "playerID") %>% 
+  # Calculate the mean number of awards per player
+  summarize(avg_n = mean(n, na.rm = TRUE))
+```
+
+```{r}
+# A tibble: 1 x 1
+  avg_n
+  <dbl>
+1 11.95
+
+# A tibble: 1 x 1
+  avg_n
+  <dbl>
+1 4.227
+```
+
+
+
+### EXERCISE 8: Salary separating inductee from non-inductee?
+
+Salary may provide another way to differentiate inductees from non-inductees. Does the maximum salary earned by inductees tend to be greater than the maximum salary earned by nominees who were not inducted?
+
+**Instructions**
+
+- Create `notInducted`, a dataset that contains the rows of `nominated` that are not in `inducted` using a set operation.
+- Filter `Salaries` against `notInducted` to return only the salaries of nominees who were not inducted.
+  - Then calculate the max salary for each player in the results. Call this variable `max_salary`
+  - Then in a separate `summarize()` call, calculate the average of the max salaries. Call this variable `avg_salary`.
+- Repeat the process for the players in `inducted`.
+
+```{r}
+# Find the players who are in nominated, but not inducted
+notInducted <- nominated %>% 
+  setdiff(inducted)
+
+Salaries %>% 
+  # Find the players who are in notInducted
+  semi_join(notInducted, by = "playerID") %>% 
+  # Calculate the max salary by player
+  group_by(playerID) %>% 
+  summarize(max_salary = max(salary, na.rm = TRUE)) %>% 
+  # Calculate the average of the max salaries
+  summarize(avg_salary = mean(max_salary, na.rm = T))
+
+# Repeat for players who were inducted
+Salaries %>% 
+  # Find the players who are in inducted
+  semi_join(inducted, by = "playerID") %>% 
+  # Calculate the max salary by player
+  group_by(playerID) %>% 
+  summarize(max_salary = max(salary, na.rm = TRUE)) %>% 
+  # Calculate the average of the max salaries
+  summarize(avg_salary = mean(max_salary, na.rm = T))
+```
+
+```{r}
+# A tibble: 1 x 1
+  avg_salary
+       <dbl>
+1   4677737.
+
+# A tibble: 1 x 1
+  avg_salary
+       <dbl>
+1   5079720.
+```
+
+### EXERCISE 9: Retirement
+
+One of the rules of the Hall of Fame is that players cannot be nominated until five years after they retire. Is this reflected in our data?
+
+**Instructions**
+
+Use `Appearances` to determine the year of the last appearance of each player nominated to the Hall of Fame. Compare it to the year(s) they were nominated to determine whether any players were nominated before they completely retired. You'll want to:
+
+- Filter `Appearances` against `nominated` to get the information in `Appearances` for all nominated players.
+- Use `dplyr` methods to find the last year played by player. Call this `last_year` within your `summarize()` call.
+- Left join the results to the full `HallOfFame` dataset.
+- Use `dplyr` methods to spot unusual observations. Did you `filter()` your data such that `last_year` is greater or equal to `yearID` to find unusual observations?
+
+```{r}
+Appearances %>% 
+  # Filter Appearances against nominated
+  semi_join(nominated, by = "playerID") %>% 
+  # Find last year played by player
+  group_by(playerID) %>% 
+  summarize(last_year = max(yearID)) %>% 
+  # Join to full HallOfFame
+  left_join(HallOfFame, by = "playerID") %>% 
+  # Filter for unusual observations
+  filter(last_year >= yearID)
+```
+
+Did you `filter()` your data such that `last_year` is greater or equal to `yearID` to find unusual observations?
